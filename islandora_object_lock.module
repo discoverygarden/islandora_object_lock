@@ -46,7 +46,9 @@ function islandora_object_lock_permission() {
     'administer islandora object locking' => array(
       'title' => t('Administer Islandora object locking'),
     ),
-    ''
+    'add or remove islandora object lock' => array(
+      'title' => t('Add or remove Islandora object locks'),
+    ),
   );
 }
 
@@ -95,7 +97,7 @@ function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op) {
   }
 
   // check if permission
-  if (!user_access()) {
+  if (!user_access('add or remove islandora object lock')) {
     $perm = FALSE;
   }
 
