@@ -1,0 +1,132 @@
+<?php
+// What happens for lock duration when object belongs to multiple collections?
+
+define('ISLANDORA_OBJECT_LOCK_EXPIRY_PRED', 'lock-expiry');
+define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
+
+/**
+ * Implements hook_menu().
+ */
+function islandora_object_lock_menu() {
+  $items = array();
+  $items['admin/islandora/object-lock'] = array(
+    'title' => 'Object locking',
+    'access arguments' => array('administer islandora object locking'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_object_lock_admin_form'),
+    'file' => 'includes/admin.form.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['islandora/object/%islandora_object/manage/datastreams/locking/lock'] = array(
+    'title' => 'Lock object',
+    'file' => 'includes/lock.form.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_object_lock_form_lock', 2, 'lock'),
+    'type' => MENU_LOCAL_ACTION,
+    'access callback' => 'islandora_object_lock_access_lock',
+    'access arguments' => array(2, 'lock'),
+  );
+  $items['islandora/object/%islandora_object/manage/datastreams/locking/unlock'] = array(
+    'title' => 'Remove object lock',
+    'file' => 'includes/lock.form.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_object_lock_form_lock', 2, 'unlock'),
+    'type' => MENU_LOCAL_ACTION,
+    'access callback' => 'islandora_object_lock_access_lock',
+    'access arguments' => array(2, 'unlock'),
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function islandora_object_lock_permission() {
+  return array(
+    'administer islandora object locking' => array(
+      'title' => t('Administer Islandora object locking'),
+    ),
+    ''
+  );
+}
+
+/**
+ * Implements hook_cron().
+ */
+function islandora_object_lock_cron() {
+
+}
+
+function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = NULL) {
+  if (is_null($user)) {
+    global $user;
+  }
+
+  if (is_null($duration)) {
+    $duration = islandora_object_lock_get_duration($pid);
+  }
+
+  $expiry_time = time() + (60 * $duration);
+  dpm(time());
+  dpm($expiry_time);
+  $expiry_date = gmdate("Y-m-d\TH:i:s\Z", $expiry_time);
+  $object = islandora_object_load($pid);
+
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_PLAIN_LITERAL);
+
+}
+
+function islandora_object_lock_remove_object_lock($pid) {
+  $object = islandora_object_load($pid);
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
+}
+
+function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op) {
+  $perm = FALSE;
+  $locked = islandora_object_lock_is_locked($object);
+
+  if ($op == 'lock' && !$locked) {
+    $perm = TRUE;
+  }
+
+  // Operation is unlock
+  if ($op == 'unlock' && $locked) {
+    $perm = TRUE;
+  }
+
+  // check if permission
+  if (!user_access()) {
+    $perm = FALSE;
+  }
+
+  // check if can manage
+
+  return $perm;
+}
+
+function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
+  $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  if (count($lock) < 1) {
+    return FALSE;
+  }
+  else {
+    $expiry_time = strtotime($lock[0]['object']['value']);
+    if ($expiry_time < time()) {
+      islandora_object_lock_remove_object_lock($object->id);
+      return FALSE;
+    }
+    else {
+      return TRUE;
+    }
+  }
+}
+
+function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(&$form, &$form_state, $form_id) {
+  //$locked = islandora_object_lock_is_locked()
+}
+
+function islandora_object_lock_get_duration($pid) {
+  //@TODO: Do a collection check
+  $duration = variable_get('islandora_object_lock_duration', 30);
+  return $duration;
+}
