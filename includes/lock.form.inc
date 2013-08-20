@@ -1,12 +1,7 @@
 <?php
 
-//@TODO: make confirm_form()
 function islandora_object_lock_form_lock($form, $form_state, $object, $op) {
   $form = array();
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#value' => t('Lock'),
-  );
   $form['pid'] = array(
     '#type' => 'value',
     '#value' => $object->id,
@@ -15,7 +10,14 @@ function islandora_object_lock_form_lock($form, $form_state, $object, $op) {
     '#type' => 'value',
     '#value' => $op,
   );
-  return $form;
+
+  if ($op == 'lock') {
+    $question = t('Lock this object?');
+  }
+  else {
+    $question = t('Remove the object lock?');
+  }
+  return confirm_form($form, $question, "islandora/object/$object->id/manage/datastreams");
 }
 
 function islandora_object_lock_form_lock_submit($form, &$form_state) {

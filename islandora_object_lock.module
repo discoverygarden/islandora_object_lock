@@ -49,6 +49,9 @@ function islandora_object_lock_permission() {
     'add or remove islandora object lock' => array(
       'title' => t('Add or remove Islandora object locks'),
     ),
+    'manage islandora object lock' => array(
+      'title' => t('Manage Islandora object locks'),
+    ),
   );
 }
 
@@ -56,7 +59,35 @@ function islandora_object_lock_permission() {
  * Implements hook_cron().
  */
 function islandora_object_lock_cron() {
+  $repository = new IslandoraTuque();
+  $lock_uri = ISLANDORA_RELS_EXT_URI;
+  $lock_pred = ISLANDORA_OBJECT_LOCK_EXPIRY_PRED;
+  $now = gmdate("Y-m-d\TH:i:s\Z");
+  $query = <<<EOQ
+PREFIX is: <$lock_uri>
+SELECT ?expired ?date
+FROM <#ri>
+WHERE {
+  ?expired is:$lock_pred ?date .
+  FILTER(?date < '$now'^^xsd:dateTime)
+}
+EOQ;
+  $results = $repository->repository->ri->sparqlQuery($query);
+  if (count($results)) {
+    drupal_save_session(FALSE);
 
+    $original_user = $GLOBALS['user'];
+    $GLOBALS['user'] = user_load(1);
+
+    foreach ($results as $result) {
+      $pid = $result['expired']['value'];
+      islandora_object_lock_remove_object_lock($pid);
+      watchdog('islandora_object_lock', 'Object lock removed by cron for pid: ' . $pid);
+    }
+
+    $GLOBALS['user'] = $original_user;
+    drupal_save_session(TRUE);
+  }
 }
 
 function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = NULL) {
@@ -69,39 +100,42 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   }
 
   $expiry_time = time() + (60 * $duration);
-  dpm(time());
-  dpm($expiry_time);
   $expiry_date = gmdate("Y-m-d\TH:i:s\Z", $expiry_time);
   $object = islandora_object_load($pid);
 
-  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_PLAIN_LITERAL);
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_DATETIME);
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
 
+  $xacml = new IslandoraXacml($object);
+  $xacml->managementRule->addUser($user->name);
+  $xacml->writeBackToFedora();
 }
 
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
+  $locking_user = islandora_object_lock_get_lock_user_name($object);
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
+
+  $xacml = new IslandoraXacml($object);
+  $xacml->managementRule->removeUser($locking_user);
+  $xacml->writeBackToFedora();
 }
 
 function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op) {
   $perm = FALSE;
+
   $locked = islandora_object_lock_is_locked($object);
+  $can_lock = user_access('add or remove islandora object lock');
+  $can_manage = user_access('manage islandora object lock');
 
-  if ($op == 'lock' && !$locked) {
+  if ($op == 'lock' && !$locked && ($can_lock || $can_manage)) {
     $perm = TRUE;
   }
 
-  // Operation is unlock
-  if ($op == 'unlock' && $locked) {
+  if ($op == 'unlock' && $locked && ($can_lock || $can_manage)) {
     $perm = TRUE;
   }
-
-  // check if permission
-  if (!user_access('add or remove islandora object lock')) {
-    $perm = FALSE;
-  }
-
-  // check if can manage
 
   return $perm;
 }
@@ -131,4 +165,9 @@ function islandora_object_lock_get_duration($pid) {
   //@TODO: Do a collection check
   $duration = variable_get('islandora_object_lock_duration', 30);
   return $duration;
+}
+
+function islandora_object_lock_get_lock_user_name($object) {
+  $users = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  return $users[0]['object']['value'];
 }

@@ -1,0 +1,6 @@
+name = Islandora Object Locking REST
+description = REST interface for managing Fedora Commons object locks.
+core = 7.x
+dependencies[] = islandora_rest
+dependencies[] = islandora_object_lock
+package = Islandora
