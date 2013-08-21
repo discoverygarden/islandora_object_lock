@@ -1,6 +1,26 @@
 <?php
 
-function islandora_object_lock_form_lock($form, $form_state, $object, $op) {
+/**
+ * @file
+ * Object locking form.
+ */
+
+/**
+ * Lock/unlock form.
+ *
+ * @param array $form
+ *   The form.
+ * @param array $form_state
+ *   The form state.
+ * @param AbstractFedoraObject $object
+ *   The Fedora object.
+ * @param string $op
+ *   The form operation, may be: lock, unlock.
+ *
+ * @return mixed
+ *   The form.
+ */
+function islandora_object_lock_form_lock($form, $form_state, AbstractFedoraObject $object, $op) {
   $form = array();
   $form['pid'] = array(
     '#type' => 'value',
@@ -17,9 +37,17 @@ function islandora_object_lock_form_lock($form, $form_state, $object, $op) {
   else {
     $question = t('Remove the object lock?');
   }
-  return confirm_form($form, $question, "islandora/object/$object->id/manage/datastreams");
+  return confirm_form($form, check_plain($question), "islandora/object/$object->id/manage/datastreams");
 }
 
+/**
+ * Submit handler for the lock/unlock form.
+ *
+ * @param array $form
+ *   The form.
+ * @param array $form_state
+ *   The form state.
+ */
 function islandora_object_lock_form_lock_submit($form, &$form_state) {
   $pid = $form_state['values']['pid'];
   if ($form_state['values']['lock-op'] == 'lock') {

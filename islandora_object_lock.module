@@ -1,5 +1,9 @@
 <?php
-// What happens for lock duration when object belongs to multiple collections?
+
+/**
+ * @file
+ * Functionality for locking an object for a time period via XACML.
+ */
 
 define('ISLANDORA_OBJECT_LOCK_EXPIRY_PRED', 'lock-expiry');
 define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
@@ -64,13 +68,13 @@ function islandora_object_lock_cron() {
   $lock_pred = ISLANDORA_OBJECT_LOCK_EXPIRY_PRED;
   $now = gmdate("Y-m-d\TH:i:s\Z");
   $query = <<<EOQ
-PREFIX is: <$lock_uri>
-SELECT ?expired ?date
-FROM <#ri>
-WHERE {
-  ?expired is:$lock_pred ?date .
-  FILTER(?date < '$now'^^xsd:dateTime)
-}
+    PREFIX is: <$lock_uri>
+    SELECT ?expired ?date
+    FROM <#ri>
+    WHERE {
+      ?expired is:$lock_pred ?date .
+      FILTER(?date < '$now'^^xsd:dateTime)
+    }
 EOQ;
   $results = $repository->repository->ri->sparqlQuery($query);
   if (count($results)) {
@@ -79,10 +83,12 @@ EOQ;
     $original_user = $GLOBALS['user'];
     $GLOBALS['user'] = user_load(1);
 
-    foreach ($results as $result) {
-      $pid = $result['expired']['value'];
+    $max_per_cron = variable_get('islandora_object_lock_cron_throttle', 30);
+    $loop_count = ($max_per_cron > count($results)) ? count($results) : $max_per_cron;
+    for ($i = 0; $i < $loop_count; $i++) {
+      $pid = $results[$i]['expired']['value'];
       islandora_object_lock_remove_object_lock($pid);
-      watchdog('islandora_object_lock', 'Object lock removed by cron for pid: ' . $pid);
+      watchdog('islandora_object_lock', 'Object lock removed by cron for PID: @pid', array('@pid' => $pid));
     }
 
     $GLOBALS['user'] = $original_user;
@@ -90,13 +96,66 @@ EOQ;
   }
 }
 
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Catch datastream editing operation and lock object automatically. Enforce
+ * locks if a lock has been placed already by another user.
+ */
+function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(&$form, &$form_state, $form_id) {
+  module_load_include('inc', 'islandora', 'includes/utitilies');
+  $pid = arg(2);
+  if (islandora_is_valid_pid($pid)) {
+    $object = islandora_object_load($pid);
+    $locked = islandora_object_lock_is_locked($object);
+    if ($locked) {
+      $username = islandora_object_lock_get_lock_username($object);
+      global $user;
+      if ($username != $user->name) {
+        drupal_set_message(t('This object has been locked by another user.'), 'error');
+        drupal_goto("islandora/object/$object->id/manage/datastreams");
+      }
+    }
+    else {
+      islandora_object_lock_set_object_lock($object->id);
+      $form['#submit'][] = 'islandora_object_lock_release_form_builder_lock';
+      drupal_set_message(t('The object has been locked.'));
+    }
+  }
+}
+
+/**
+ * Implements hook_islandora_datastream_modified().
+ *
+ * Release a lock if a datastream is modified.
+ */
+function islandora_object_lock_islandora_datastream_modified(AbstractFedoraObject $object, AbstractFedoraDatastream $datastream) {
+  $excluded_datastreams = array('RELS-EXT', 'POLICY');
+  if (!in_array($datastream->id, $excluded_datastreams)) {
+    $locked = islandora_object_lock_is_locked($object);
+    if ($locked) {
+      islandora_object_lock_remove_object_lock($object->id);
+    }
+  }
+}
+
+/**
+ * Lock an object.
+ *
+ * @param string $pid
+ *   The object's PID.
+ * @param stdClass $user
+ *   The user object for the lock owner.
+ * @param int $duration
+ *   The length of the lock in minutes.
+ */
 function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = NULL) {
   if (is_null($user)) {
     global $user;
   }
 
   if (is_null($duration)) {
-    $duration = islandora_object_lock_get_duration($pid);
+    $duration = islandora_object_lock_compute_duration($pid);
   }
 
   $expiry_time = time() + (60 * $duration);
@@ -111,10 +170,16 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   $xacml->writeBackToFedora();
 }
 
+/**
+ * Remove a lock from an object.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
-  $locking_user = islandora_object_lock_get_lock_user_name($object);
+  $locking_user = islandora_object_lock_get_lock_username($object);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
   $xacml = new IslandoraXacml($object);
@@ -122,7 +187,18 @@ function islandora_object_lock_remove_object_lock($pid) {
   $xacml->writeBackToFedora();
 }
 
-function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op) {
+/**
+ * Access callback for setting or removing locks.
+ *
+ * @param AbstractFedoraObject $object
+ *   The object that is being locked/unlocked.
+ * @param string $op
+ *   The operation, values may be: lock, unlock.
+ *
+ * @return bool
+ *   TRUE if access is granted.
+ */
+function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op = NULL) {
   $perm = FALSE;
 
   $locked = islandora_object_lock_is_locked($object);
@@ -137,9 +213,26 @@ function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op) {
     $perm = TRUE;
   }
 
+  if (is_null($op) && ($can_lock || $can_manage)) {
+    $perm = TRUE;
+  }
+
+  if (!islandora_object_access(ISLANDORA_METADATA_EDIT, $object)) {
+    $perm = FALSE;
+  }
+
   return $perm;
 }
 
+/**
+ * Check if an object is locked.
+ *
+ * @param AbstractFedoraObject $object
+ *   The object to check.
+ *
+ * @return bool
+ *   TRUE if the object is locked.
+ */
 function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
   $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
   if (count($lock) < 1) {
@@ -157,17 +250,45 @@ function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
   }
 }
 
-function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(&$form, &$form_state, $form_id) {
-  //$locked = islandora_object_lock_is_locked()
-}
-
-function islandora_object_lock_get_duration($pid) {
-  //@TODO: Do a collection check
+/**
+ * Determine the duration an object should be locked for.
+ *
+ * @param string $pid
+ *   The object's PID.
+ *
+ * @return int
+ *   The duration in minutes.
+ */
+function islandora_object_lock_compute_duration($pid) {
+  // @TODO: Do a collection check
   $duration = variable_get('islandora_object_lock_duration', 30);
   return $duration;
 }
 
-function islandora_object_lock_get_lock_user_name($object) {
+/**
+ * Return the username of an object's lock owner.
+ *
+ * @param AbstractFedoraObject $object
+ *   The Fedora object.
+ *
+ * @return string
+ *   The username.
+ */
+function islandora_object_lock_get_lock_username(AbstractFedoraObject $object) {
   $users = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
   return $users[0]['object']['value'];
+}
+
+/**
+ * Return the expiry date for a lock.
+ *
+ * @param AbstractFedoraObject $object
+ *   The Fedora object.
+ *
+ * @return string
+ *   The expiry date.
+ */
+function islandora_object_lock_get_lock_expiry(AbstractFedoraObject $object) {
+  $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_DATETIME);
+  return $expiry[0]['object']['value'];
 }
