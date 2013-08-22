@@ -67,6 +67,7 @@ function islandora_object_lock_cron() {
   $lock_uri = ISLANDORA_RELS_EXT_URI;
   $lock_pred = ISLANDORA_OBJECT_LOCK_EXPIRY_PRED;
   $now = gmdate("Y-m-d\TH:i:s\Z");
+  $max_per_cron = variable_get('islandora_object_lock_cron_throttle', 30);
   $query = <<<EOQ
     PREFIX is: <$lock_uri>
     SELECT ?expired ?date
@@ -75,6 +76,7 @@ function islandora_object_lock_cron() {
       ?expired is:$lock_pred ?date .
       FILTER(?date < '$now'^^xsd:dateTime)
     }
+    LIMIT $max_per_cron
 EOQ;
   $results = $repository->repository->ri->sparqlQuery($query);
   if (count($results)) {
@@ -83,7 +85,6 @@ EOQ;
     $original_user = $GLOBALS['user'];
     $GLOBALS['user'] = user_load(1);
 
-    $max_per_cron = variable_get('islandora_object_lock_cron_throttle', 30);
     $loop_count = ($max_per_cron > count($results)) ? count($results) : $max_per_cron;
     for ($i = 0; $i < $loop_count; $i++) {
       $pid = $results[$i]['expired']['value'];
