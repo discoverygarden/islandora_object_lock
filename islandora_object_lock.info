@@ -1,0 +1,6 @@
+name = Islandora Object Locking
+description = Lock Fedora Commons objects to prevent modifications.
+core = 7.x
+dependencies[] = islandora
+dependencies[] = islandora_xacml_api
+package = Islandora

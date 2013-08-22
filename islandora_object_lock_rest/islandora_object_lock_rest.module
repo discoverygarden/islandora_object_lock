@@ -1,0 +1,119 @@
+<?php
+
+/**
+ * @file
+ * REST interface for Islandora object locking.
+ */
+
+define('ISLANDORA_OBJECT_LOCK_REST_MENU', 'islandora/rest/v1/object/%/lock');
+
+/**
+ * Implements hook_menu().
+ */
+function islandora_object_lock_rest_menu() {
+  $items = array();
+  $items[ISLANDORA_OBJECT_LOCK_REST_MENU] = array(
+    'page callback' => 'islandora_object_lock_rest_callback',
+    'page arguments' => array(4),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Callback for REST endpoint to route requests.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
+function islandora_object_lock_rest_callback($pid) {
+  module_load_include('inc', 'islandora_rest', 'includes/utilities');
+  $method = islandora_rest_get_request_method();
+
+  switch ($method) {
+    case 'GET':
+    default:
+      islandora_object_lock_rest_get($pid);
+      break;
+
+    case 'POST':
+      islandora_object_lock_rest_post($pid);
+      break;
+
+    case 'DELETE':
+      islandora_object_lock_rest_delete($pid);
+      break;
+  }
+}
+
+/**
+ * GET handler.
+ *
+ * Prints JSON result.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
+function islandora_object_lock_rest_get($pid) {
+  $object = islandora_object_load($pid);
+  if (!islandora_object_lock_access_lock($object)) {
+    islandora_object_lock_rest_unauthorized();
+  }
+  $locked = islandora_object_lock_is_locked($object);
+  $response = array('locked' => $locked);
+  if ($locked) {
+    $response['expires'] = islandora_object_lock_get_lock_expiry($object);
+    $response['user'] = islandora_object_lock_get_lock_username($object);
+  }
+  drupal_add_http_header('Content-Type', 'application/json; utf-8');
+  print drupal_json_encode($response);
+  exit();
+}
+
+/**
+ * POST handler.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
+function islandora_object_lock_rest_post($pid) {
+  $object = islandora_object_load($pid);
+  if (!islandora_object_lock_access_lock($object, 'lock')) {
+    islandora_object_lock_rest_unauthorized();
+  }
+  islandora_object_lock_set_object_lock($pid);
+  drupal_add_http_header('Status', 201);
+  exit();
+}
+
+/**
+ * DELETE handler.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
+function islandora_object_lock_rest_delete($pid) {
+  $object = islandora_object_load($pid);
+  if (!islandora_object_lock_access_lock($object, 'unlock')) {
+    islandora_object_lock_rest_unauthorized();
+  }
+  islandora_object_lock_remove_object_lock($pid);
+
+  // @TODO: check status
+  drupal_add_http_header('Status', 200);
+  exit();
+}
+
+/**
+ * Handle unauthorized requests.
+ */
+function islandora_object_lock_rest_unauthorized() {
+  if (user_is_anonymous()) {
+    drupal_add_http_header('Status', 401);
+  }
+  else {
+    drupal_add_http_header('Status', 403);
+  }
+  exit();
+}
