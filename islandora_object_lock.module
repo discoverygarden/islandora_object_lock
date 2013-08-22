@@ -163,12 +163,12 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   $expiry_date = gmdate("Y-m-d\TH:i:s\Z", $expiry_time);
   $object = islandora_object_load($pid);
 
-  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_DATETIME);
-  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
-
   $xacml = new IslandoraXacml($object);
   $xacml->managementRule->addUser($user->name);
   $xacml->writeBackToFedora();
+
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_DATETIME);
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
 }
 
 /**
