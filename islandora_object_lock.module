@@ -180,11 +180,10 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
-  $locking_user = islandora_object_lock_get_lock_username($object);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
   $xacml = new IslandoraXacml($object);
-  $xacml->managementRule->removeUser($locking_user);
+  $xacml->managementRule->clear();
   $xacml->writeBackToFedora();
 }
 
