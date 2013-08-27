@@ -200,7 +200,7 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $locking_user = islandora_object_lock_get_lock_username($object);
-  
+
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
