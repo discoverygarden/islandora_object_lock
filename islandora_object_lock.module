@@ -7,6 +7,8 @@
 
 define('ISLANDORA_OBJECT_LOCK_EXPIRY_PRED', 'lock-expiry');
 define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
+define('ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED', 'isManagementRule');
+define('ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED', 'isUserManagementRule');
 
 /**
  * Implements hook_menu().
@@ -182,11 +184,29 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   $object = islandora_object_load($pid);
 
   $xacml = new IslandoraXacml($object);
+
+  $management_rule = FALSE;
+  $user_in_rule = FALSE;
+  if ($xacml->managementRule->isPopulated()) {
+    $management_rule = TRUE;
+    $users_in_rule = $xacml->managementRule->getUsers();
+    if (in_array($user->name, $users_in_rule)) {
+      $user_in_rule = TRUE;
+    }
+  }
+
   $xacml->managementRule->addUser($user->name);
   $xacml->writeBackToFedora();
 
   $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_DATETIME);
   $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
+
+  if ($management_rule) {
+    $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, "TRUE", RELS_TYPE_PLAIN_LITERAL);
+    if ($user_in_rule) {
+      $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, "TRUE", RELS_TYPE_PLAIN_LITERAL);
+    }
+  }
 }
 
 /**
@@ -197,12 +217,26 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
  */
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   $locking_user = islandora_object_lock_get_lock_username($object);
+
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
   $xacml = new IslandoraXacml($object);
-  $xacml->managementRule->removeUser($locking_user);
+
+  $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  if (!empty($was_management_rule)) {
+    $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
+    $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+    if (empty($was_user_management_rule)) {
+      $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
+      $xacml->managementRule->removeUser($locking_user);
+    }
+  }
+  else {
+    $xacml->managementRule->clear();
+  }
+
   $xacml->writeBackToFedora();
 }
 
