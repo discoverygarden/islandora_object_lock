@@ -21,6 +21,24 @@ function islandora_object_lock_menu() {
     'file' => 'includes/admin.form.inc',
     'type' => MENU_NORMAL_ITEM,
   );
+  $items['islandora/object/%islandora_object/request_unlock'] = array(
+    'title' => 'Request unlock',
+    'page callback' => 'islandora_object_lock_request_unlock',
+    'page arguments' => array(2),
+    'access callback' => 'islandora_object_access_callback',
+    'access arguments' => array(
+      array(
+        ISLANDORA_MANAGE_PROPERTIES,
+        ISLANDORA_METADATA_EDIT,
+        ISLANDORA_ADD_DS,
+        ISLANDORA_PURGE,
+        ISLANDORA_INGEST,
+       ),
+      2,
+    ),
+    'file' => 'includes/callbacks.inc',
+    'type' => MENU_CALLBACK,
+  );
   $items['islandora/object/%islandora_object/manage/datastreams/locking/lock'] = array(
     'title' => 'Lock object',
     'file' => 'includes/lock.form.inc',
@@ -104,7 +122,7 @@ EOQ;
  * locks if a lock has been placed already by another user.
  */
 function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(&$form, &$form_state, $form_id) {
-  module_load_include('inc', 'islandora', 'includes/utitilies');
+  module_load_include('inc', 'islandora', 'includes/utilities');
   $pid = arg(2);
   if (islandora_is_valid_pid($pid)) {
     $object = islandora_object_load($pid);
@@ -292,4 +310,12 @@ function islandora_object_lock_get_lock_username(AbstractFedoraObject $object) {
 function islandora_object_lock_get_lock_expiry(AbstractFedoraObject $object) {
   $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_DATETIME);
   return $expiry[0]['object']['value'];
+}
+
+/**
+ * Implements hook_islandora_edit_object().
+ */
+function islandora_object_lock_islandora_edit_object(AbstractObject $object) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+  islandora_object_lock_handle_possible_lock_notice($object);
 }
