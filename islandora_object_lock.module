@@ -27,17 +27,7 @@ function islandora_object_lock_menu() {
     'title' => 'Request unlock',
     'page callback' => 'islandora_object_lock_request_unlock',
     'page arguments' => array(2),
-    'access callback' => 'islandora_object_access_callback',
-    'access arguments' => array(
-      array(
-        ISLANDORA_MANAGE_PROPERTIES,
-        ISLANDORA_METADATA_EDIT,
-        ISLANDORA_ADD_DS,
-        ISLANDORA_PURGE,
-        ISLANDORA_INGEST,
-       ),
-      2,
-    ),
+    'access callback' => 'islandora_object_lock_request_unlock_access',
     'file' => 'includes/callbacks.inc',
     'type' => MENU_CALLBACK,
   );
@@ -349,7 +339,59 @@ function islandora_object_lock_get_lock_expiry(AbstractObject $object) {
 /**
  * Implements hook_islandora_edit_object().
  */
-function islandora_object_lock_islandora_edit_object(AbstractObject $object) {
+function islandora_object_lock_islandora_view_object(AbstractObject $object) {
   module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   islandora_object_lock_handle_possible_lock_notice($object);
+}
+
+/**
+ * Checks if the user may have management rights on objects.
+ *
+ * @return bool
+ *   TRUE if they might, FALSE if they can't.
+ */
+function islandora_object_lock_request_unlock_access() {
+  $allowable_permissions = array(
+    ISLANDORA_MANAGE_PROPERTIES,
+    ISLANDORA_METADATA_EDIT,
+    ISLANDORA_ADD_DS,
+    ISLANDORA_PURGE,
+    ISLANDORA_INGEST,
+  );
+
+  foreach ($allowable_permissions as $allowable_permission) {
+    if (user_access($allowable_permission)) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_mail().
+ *
+ * @global user
+ */
+function islandora_object_lock_mail($key, &$message, $params) {
+  global $user;
+  $object = $params['object'];
+
+  switch ($key) {
+    case 'request_unlock':
+      $message['subject'] = t('@user requests unlock of @label',
+        array('@user' => $user->name, '@label' => $object->label)
+      );
+
+      $message['body'][] = t("@user wishes to edit @label, you may unlock the object: @unlock_link",
+        array(
+          '@user' => $user->name,
+          '@label' => $object->label,
+          '@unlock_link' => url(
+            "islandora/object/{$object->id}/manage/datastreams/locking/unlock",
+            array('absolute' =>TRUE)
+          ),
+        )
+      );
+      break;
+  }
 }
