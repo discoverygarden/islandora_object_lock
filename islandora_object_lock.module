@@ -388,7 +388,7 @@ function islandora_object_lock_mail($key, &$message, $params) {
           '@label' => $object->label,
           '@unlock_link' => url(
             "islandora/object/{$object->id}/manage/datastreams/locking/unlock",
-            array('absolute' =>TRUE)
+            array('absolute' => TRUE)
           ),
         )
       );
