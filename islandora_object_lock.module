@@ -150,7 +150,7 @@ function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(
  *
  * Release a lock if a datastream is modified.
  */
-function islandora_object_lock_islandora_datastream_modified(AbstractFedoraObject $object, AbstractFedoraDatastream $datastream) {
+function islandora_object_lock_islandora_datastream_modified(AbstractObject $object, AbstractDatastream $datastream) {
   $excluded_datastreams = array('RELS-EXT', 'POLICY');
   if (!in_array($datastream->id, $excluded_datastreams)) {
     $locked = islandora_object_lock_is_locked($object);
@@ -243,7 +243,7 @@ function islandora_object_lock_remove_object_lock($pid) {
 /**
  * Access callback for setting or removing locks.
  *
- * @param AbstractFedoraObject $object
+ * @param AbstractObject $object
  *   The object that is being locked/unlocked.
  * @param string $op
  *   The operation, values may be: lock, unlock.
@@ -251,7 +251,7 @@ function islandora_object_lock_remove_object_lock($pid) {
  * @return bool
  *   TRUE if access is granted.
  */
-function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op = NULL) {
+function islandora_object_lock_access_lock(AbstractObject $object, $op = NULL) {
   $perm = FALSE;
 
   $locked = islandora_object_lock_is_locked($object);
@@ -280,13 +280,13 @@ function islandora_object_lock_access_lock(AbstractFedoraObject $object, $op = N
 /**
  * Check if an object is locked.
  *
- * @param AbstractFedoraObject $object
+ * @param AbstractObject $object
  *   The object to check.
  *
  * @return bool
  *   TRUE if the object is locked.
  */
-function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
+function islandora_object_lock_is_locked(AbstractObject $object) {
   $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
   if (count($lock) < 1) {
     return FALSE;
@@ -321,13 +321,13 @@ function islandora_object_lock_compute_duration($pid) {
 /**
  * Return the username of an object's lock owner.
  *
- * @param AbstractFedoraObject $object
+ * @param AbstractObject $object
  *   The Fedora object.
  *
  * @return string
  *   The username.
  */
-function islandora_object_lock_get_lock_username(AbstractFedoraObject $object) {
+function islandora_object_lock_get_lock_username(AbstractObject $object) {
   $users = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
   return $users[0]['object']['value'];
 }
@@ -335,13 +335,13 @@ function islandora_object_lock_get_lock_username(AbstractFedoraObject $object) {
 /**
  * Return the expiry date for a lock.
  *
- * @param AbstractFedoraObject $object
+ * @param AbstractObject $object
  *   The Fedora object.
  *
  * @return string
  *   The expiry date.
  */
-function islandora_object_lock_get_lock_expiry(AbstractFedoraObject $object) {
+function islandora_object_lock_get_lock_expiry(AbstractObject $object) {
   $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_DATETIME);
   return $expiry[0]['object']['value'];
 }
