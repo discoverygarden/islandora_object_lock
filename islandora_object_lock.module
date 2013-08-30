@@ -45,6 +45,67 @@ function islandora_object_lock_menu() {
 }
 
 /**
+ * Implements hook_islandora_basic_collection_build_manage_object().
+ */
+function islandora_object_lock_islandora_basic_collection_build_manage_object($form_state, $object) {
+  $return_form['manage_collection_object']['manage_obj_lock'] = array(
+    '#id' => 'manage-obj-lock',
+    '#group' => 'manage_obj_object',
+    '#access' => TRUE,
+    '#type' => 'fieldset',
+    '#title' => t('Manage Lock Objects'),
+    'form' => drupal_get_form('islandora_object_lock_manage_lock_form', $object),
+  );
+  $return_form['manage_collection_object']['manage_obj_lock']['form']['#submit'][] = 'islandora_object_lock_manage_lock_form_submit';
+  return $return_form;
+}
+
+/**
+ * Create the manage_lock_form.
+ *
+ * @param array $form
+ *   The form being processed.
+ * @param array $form_state
+ *   The current $form_state.
+ * @param AbstractObject $object
+ *   The Fedora object in qustion.
+ *
+ * @return array
+ *   The form to be appended to the manage object.
+ */
+function islandora_object_lock_manage_lock_form(array $form, array &$form_state, AbstractObject $object) {
+  $form_state['storage'] = array('pid' => $object->id);
+  $global_lock_length = variable_get('islandora_object_lock_duration', 30);
+  $str = str_replace(array(':'), array('_'), $object->id);
+  return array(
+    'text_field' => array(
+      '#type' => 'textfield',
+      '#title' => t('Collection level Lock duration (minutes)'),
+      '#default_value' => variable_get('islandora_object_lock_' .
+        str_replace(array(':'), array('_'), $object->id) . '_duration', $global_lock_length),
+      '#description' => t('Override default lock length for all children of this collection (objects and subcollections).'),
+    ),
+    'submit' => array(
+      '#type' => 'submit',
+      '#value' => t('Set collection level lock duration'),
+    ),
+  );
+}
+
+/**
+ * Submit handler for manage_lock_form.
+ *
+ * @param array $form
+ *   The form being processed.
+ * @param array $form_state
+ *   The current $form_state.
+ */
+function islandora_object_lock_manage_lock_form_submit(array $form, array &$form_state) {
+  $str = str_replace(array(':'), array('_'), $form_state['storage']['pid']);
+  variable_set('islandora_object_lock_' . $str . '_duration', $form['text_field']['#value']);
+}
+
+/**
  * Implements hook_permission().
  */
 function islandora_object_lock_permission() {
@@ -189,6 +250,7 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
       $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, "TRUE", RELS_TYPE_PLAIN_LITERAL);
     }
   }
+  watchdog('Object Locked', "Object $pid has been locked for $duration min");
 }
 
 /**
@@ -200,7 +262,7 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
 function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $locking_user = islandora_object_lock_get_lock_username($object);
-  
+
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
@@ -296,7 +358,18 @@ function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
  */
 function islandora_object_lock_compute_duration($pid) {
   // @TODO: Do a collection check
-  $duration = variable_get('islandora_object_lock_duration', 30);
+  // Get the $pid parents, and use the highest lock length if it is not
+  // the same as the global.
+  $object = islandora_object_load($pid);
+  $parent_pids = islandora_object_lock_get_parent_pids($object);
+  $global_default_lock = variable_get('islandora_object_lock_duration', 30);
+  $all_locks = array();
+  foreach ($parent_pids as $parent_pid) {
+    $parent_lock_length = variable_get('islandora_object_lock_' . str_replace(array(':'), array('_'), $parent_pid) . '_duration',
+      $global_default_lock);
+    array_push($all_locks, $parent_lock_length);
+  }
+  $duration = max($all_locks);
   return $duration;
 }
 
@@ -326,4 +399,24 @@ function islandora_object_lock_get_lock_username(AbstractFedoraObject $object) {
 function islandora_object_lock_get_lock_expiry(AbstractFedoraObject $object) {
   $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_DATETIME);
   return $expiry[0]['object']['value'];
+}
+
+/**
+ * Gets a list of all parent pids.
+ *
+ * @param AbstractObject $object
+ *   The object.
+ *
+ * @return array
+ *   The list of parent PIDs.
+ */
+function islandora_object_lock_get_parent_pids(AbstractObject $object) {
+  $results = array_merge(
+    $object->relationships->get(FEDORA_RELS_EXT_URI, 'isMemberOfCollection'),
+    $object->relationships->get(FEDORA_RELS_EXT_URI, 'isMemberOf'));
+  $map_results = function($o) {
+    return $o['object']['value'];
+  };
+  $collections = array_map($map_results, $results);
+  return array_unique(array_filter($collections));
 }
