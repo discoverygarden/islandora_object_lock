@@ -81,8 +81,7 @@ function islandora_object_lock_manage_lock_form(array $form, array &$form_state,
     'text_field' => array(
       '#type' => 'textfield',
       '#title' => t('Collection level Lock duration (minutes)'),
-      '#default_value' => variable_get('islandora_object_lock_' .
-        str_replace(array(':'), array('_'), $object->id) . '_duration', $global_lock_length),
+      '#default_value' => variable_get(islandora_object_lock_duration_variable_name_for_pid($object->id), $global_lock_length),
       '#description' => t('Override default lock length for all children of this collection (objects and subcollections).'),
     ),
     'submit' => array(
@@ -90,6 +89,21 @@ function islandora_object_lock_manage_lock_form(array $form, array &$form_state,
       '#value' => t('Set collection level lock duration'),
     ),
   );
+}
+
+/**
+ * Crate a variable name representing its child lock length.
+ *
+ * @param string $pid
+ *   The pid to be used to create this variable.
+ *
+ * @return string
+ *   The propert duration var name for this pid.
+ */
+function islandora_object_lock_duration_variable_name_for_pid($pid) {
+  return 'islandora_object_lock_' .
+    str_replace(array(':'), array('_'), $pid) .
+    '_duration';
 }
 
 /**
@@ -101,8 +115,9 @@ function islandora_object_lock_manage_lock_form(array $form, array &$form_state,
  *   The current $form_state.
  */
 function islandora_object_lock_manage_lock_form_submit(array $form, array &$form_state) {
-  $str = str_replace(array(':'), array('_'), $form_state['storage']['pid']);
-  variable_set('islandora_object_lock_' . $str . '_duration', $form['text_field']['#value']);
+  // Set Collection lock duration.
+  variable_set(islandora_object_lock_duration_variable_name_for_pid($form_state['storage']['pid']),
+    $form['text_field']['#value']);
 }
 
 /**
@@ -280,7 +295,6 @@ function islandora_object_lock_remove_object_lock($pid) {
   else {
     $xacml->managementRule->clear();
   }
-
   $xacml->writeBackToFedora();
 }
 
@@ -357,20 +371,33 @@ function islandora_object_lock_is_locked(AbstractFedoraObject $object) {
  *   The duration in minutes.
  */
 function islandora_object_lock_compute_duration($pid) {
-  // @TODO: Do a collection check
   // Get the $pid parents, and use the highest lock length if it is not
   // the same as the global.
   $object = islandora_object_load($pid);
   $parent_pids = islandora_object_lock_get_parent_pids($object);
   $global_default_lock = variable_get('islandora_object_lock_duration', 30);
-  $all_locks = array();
-  foreach ($parent_pids as $parent_pid) {
-    $parent_lock_length = variable_get('islandora_object_lock_' . str_replace(array(':'), array('_'), $parent_pid) . '_duration',
-      $global_default_lock);
-    array_push($all_locks, $parent_lock_length);
+  $locks = array();
+  if (variable_get(islandora_object_lock_duration_variable_name_for_pid($pid), $global_default_lock) ==
+    $global_default_lock) {
+    // Loop thru the parents, getting locks length's for each,
+    // and add them to our $locks array().
+    foreach ($parent_pids as $parent_pid) {
+      array_push(
+        $locks,
+        variable_get(islandora_object_lock_duration_variable_name_for_pid($parent_pid), $global_default_lock)
+      );
+    }
   }
-  $duration = max($all_locks);
-  return $duration;
+  else {
+    array_push(
+      $locks,
+      variable_get(islandora_object_lock_duration_variable_name_for_pid($pid), $global_default_lock)
+    );
+  }
+
+  // Take the highest lock length parent, and
+  // apply that to the object being locked.
+  return max($locks);
 }
 
 /**
