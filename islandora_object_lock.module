@@ -10,6 +10,8 @@ define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
 define('ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED', 'isManagementRule');
 define('ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED', 'isUserManagementRule');
 
+// Permission
+define('ISLANDORA_OBJECT_LOCK_MANAGE_LOCK_DURATION', 'manage lock duration');
 /**
  * Implements hook_menu().
  */
@@ -48,16 +50,16 @@ function islandora_object_lock_menu() {
  * Implements hook_islandora_basic_collection_build_manage_object().
  */
 function islandora_object_lock_islandora_basic_collection_build_manage_object($form_state, $object) {
-  $return_form['manage_collection_object']['manage_obj_lock'] = array(
+  $form_state['manage_collection_object']['manage_obj_lock'] = array(
     '#id' => 'manage-obj-lock',
     '#group' => 'manage_obj_object',
-    '#access' => TRUE,
+    '#access' => user_access(ISLANDORA_OBJECT_LOCK_MANAGE_LOCK_DURATION),
     '#type' => 'fieldset',
-    '#title' => t('Manage Lock Objects'),
+    '#title' => t('Manage lock objects'),
     'form' => drupal_get_form('islandora_object_lock_manage_lock_form', $object),
   );
-  $return_form['manage_collection_object']['manage_obj_lock']['form']['#submit'][] = 'islandora_object_lock_manage_lock_form_submit';
-  return $return_form;
+  $form_state['manage_collection_object']['manage_obj_lock']['form']['#submit'][] = 'islandora_object_lock_manage_lock_form_submit';
+  return $form_state;
 }
 
 /**
@@ -78,7 +80,7 @@ function islandora_object_lock_manage_lock_form(array $form, array &$form_state,
   $global_lock_length = variable_get('islandora_object_lock_duration', 30);
   $str = str_replace(array(':'), array('_'), $object->id);
   return array(
-    'text_field' => array(
+    'duration' => array(
       '#type' => 'textfield',
       '#title' => t('Collection level Lock duration (minutes)'),
       '#default_value' => variable_get(islandora_object_lock_duration_variable_name_for_pid($object->id), $global_lock_length),
@@ -117,7 +119,7 @@ function islandora_object_lock_duration_variable_name_for_pid($pid) {
 function islandora_object_lock_manage_lock_form_submit(array $form, array &$form_state) {
   // Set Collection lock duration.
   variable_set(islandora_object_lock_duration_variable_name_for_pid($form_state['storage']['pid']),
-    $form['text_field']['#value']);
+    $form['duration']['#value']);
 }
 
 /**
@@ -133,6 +135,9 @@ function islandora_object_lock_permission() {
     ),
     'manage islandora object lock' => array(
       'title' => t('Manage Islandora object locks'),
+    ),
+    ISLANDORA_OBJECT_LOCK_MANAGE_LOCK_DURATION => array(
+      'title' => t('Manage Islandora object locks length'),
     ),
   );
 }
