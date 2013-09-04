@@ -28,3 +28,135 @@ function islandora_object_lock_handle_possible_lock_notice(AbstractObject $objec
     );
   }
 }
+
+/**
+ * Remove a lock from an object.
+ *
+ * @param string $pid
+ *   The object's PID.
+ */
+function islandora_object_lock_remove_object_lock($pid) {
+  $object = islandora_object_load($pid);
+  $locking_user = islandora_object_lock_get_lock_username($object);
+
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
+
+  $xacml = new IslandoraXacml($object);
+
+  $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  if (!empty($was_management_rule)) {
+    $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
+    $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+    if (empty($was_user_management_rule)) {
+      $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
+      $xacml->managementRule->removeUser($locking_user);
+    }
+  }
+  else {
+    $xacml->managementRule->clear();
+  }
+
+  $xacml->writeBackToFedora();
+}
+
+/**
+ * Will get a number of object locks.
+ *
+ * @param int $offset
+ *   The offset for the object lock query.
+ * @param int $limit
+ *   The limit for the object lock query.
+ *
+ * @return array
+ *   The locks formated for options in a tableselect.
+ */
+function islandora_object_lock_get_locks($offset, $limit) {
+  $tuque = islandora_get_tuque_connection();
+
+  $repository = $tuque->repository;
+  $query = "
+    PREFIX islandora_rels_ext: <" . ISLANDORA_RELS_EXT_URI . ">
+    PREFIX fm: <" . FEDORA_MODEL_URI . ">
+    SELECT ?label ?object ?expiry ?user FROM <#ri> WHERE {
+      ?object islandora_rels_ext:" . ISLANDORA_OBJECT_LOCK_USER_PRED . " ?user;
+        islandora_rels_ext:" . ISLANDORA_OBJECT_LOCK_EXPIRY_PRED . " ?expiry
+    OPTIONAL{?object fm:label ?label}
+    }
+    ORDER BY ?expiry
+    LIMIT $limit
+    OFFSET $offset
+  ";
+
+  $raw_results = $repository->ri->sparqlQuery($query);
+  $results = array();
+  foreach ($raw_results as $raw_result) {
+    $results[$raw_result['object']['value']] = array(
+      'object' => l($raw_result['label']['value'], "islandora/object/{$raw_result['object']['value']}"),
+      'expires' => format_date(strtotime($raw_result['expiry']['value'])),
+      'user' => $raw_result['user']['value'],
+    );
+  }
+
+  return $results;
+}
+
+/**
+ * Will get how many object locks there are.
+ *
+ * @return int
+ *   The number of object locks existing.
+ */
+function islandora_object_lock_count_locks() {
+  $tuque = islandora_get_tuque_connection();
+  $repository = $tuque->repository;
+
+  $query = "
+    PREFIX islandora_rels_ext: <" . ISLANDORA_RELS_EXT_URI . ">
+    SELECT ?object FROM <#ri> WHERE {
+      ?object islandora_rels_ext:" . ISLANDORA_OBJECT_LOCK_USER_PRED . " ?user
+    }
+  ";
+
+  return $repository->ri->countQuery($query, 'sparql');
+}
+
+/**
+ * Check if an object is locked.
+ *
+ * @param AbstractObject $object
+ *   The object to check.
+ *
+ * @return bool
+ *   TRUE if the object is locked.
+ */
+function islandora_object_lock_is_locked(AbstractObject $object) {
+  $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  if (count($lock) < 1) {
+    return FALSE;
+  }
+  else {
+    $expiry_time = strtotime($lock[0]['object']['value']);
+    if ($expiry_time < time()) {
+      islandora_object_lock_remove_object_lock($object->id);
+      return FALSE;
+    }
+    else {
+      return TRUE;
+    }
+  }
+}
+
+/**
+ * Triggers a form error if the object is not locked.
+ *
+ * @param AbstractObject $object
+ *   The object to check.
+ * @param string $form_element
+ *   A form element to call the form_set_error on.
+ */
+function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $form_element) {
+  if (!islandora_object_lock_is_locked($object)) {
+    form_set_error($form_element, t('This object needs to be locked for editing.'));
+  }
+}
