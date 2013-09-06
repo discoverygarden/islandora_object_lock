@@ -10,7 +10,7 @@ define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
 define('ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED', 'isManagementRule');
 define('ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED', 'isUserManagementRule');
 
-// Permission
+// Permission.
 define('ISLANDORA_OBJECT_LOCK_MANAGE_LOCK_DURATION', 'manage lock duration');
 /**
  * Implements hook_menu().
@@ -84,14 +84,16 @@ function islandora_object_lock_islandora_basic_collection_build_manage_object($f
  *   The form to be appended to the manage object.
  */
 function islandora_object_lock_manage_lock_form(array $form, array &$form_state, AbstractObject $object) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   $form_state['storage'] = array('pid' => $object->id);
   $global_lock_length = variable_get('islandora_object_lock_duration', 30);
   $str = str_replace(array(':'), array('_'), $object->id);
+  $collection_lock = islandora_object_lock_get_collection_lock($object->id);
   return array(
     'duration' => array(
       '#type' => 'textfield',
       '#title' => t('Collection level Lock duration (minutes)'),
-      '#default_value' => variable_get(islandora_object_lock_duration_variable_name_for_pid($object->id), $global_lock_length),
+      '#default_value' => ($collection_lock != NULL ? $collection_lock->duration : $global_lock_length),
       '#description' => t('Override default lock length for all children of this collection (objects and subcollections).'),
     ),
     'submit' => array(
@@ -99,21 +101,6 @@ function islandora_object_lock_manage_lock_form(array $form, array &$form_state,
       '#value' => t('Set collection level lock duration'),
     ),
   );
-}
-
-/**
- * Crate a variable name representing its child lock length.
- *
- * @param string $pid
- *   The pid to be used to create this variable.
- *
- * @return string
- *   The propert duration var name for this pid.
- */
-function islandora_object_lock_duration_variable_name_for_pid($pid) {
-  return 'islandora_object_lock_' .
-    str_replace(array(':'), array('_'), $pid) .
-    '_duration';
 }
 
 /**
@@ -125,9 +112,26 @@ function islandora_object_lock_duration_variable_name_for_pid($pid) {
  *   The current $form_state.
  */
 function islandora_object_lock_manage_lock_form_submit(array $form, array &$form_state) {
-  // Set Collection lock duration.
-  variable_set(islandora_object_lock_duration_variable_name_for_pid($form_state['storage']['pid']),
-    $form['duration']['#value']);
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+  // Get Collection lock duration if it is already set.
+  $collection_lock_length = islandora_object_lock_get_collection_lock($form_state['storage']['pid']);
+  $default_lock_length = variable_get('islandora_object_lock_duration', 30);
+  // Only add the lock if it has a value different then the
+  // global collection lock length.
+  if ($form['duration']['#value'] != $default_lock_length && !$collection_lock_length) {
+    islandora_object_lock_add_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
+  }
+  else {
+    // If this lock is the same as the global lock, remove it from
+    // the collection locks table. This should not happen, just for
+    // sanity reasons.
+    if ($default_lock_length == $collection_lock_length->duration) {
+      islandora_object_lock_remove_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
+    }
+    else {
+      islandora_object_lock_edit_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
+    }
+  }
 }
 
 /**
@@ -384,30 +388,35 @@ function islandora_object_lock_is_locked(AbstractObject $object) {
  *   The duration in minutes.
  */
 function islandora_object_lock_compute_duration($pid) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   // Get the $pid parents, and use the highest lock length if it is not
   // the same as the global.
   $object = islandora_object_load($pid);
   $parent_pids = islandora_object_lock_get_parent_pids($object);
   $global_default_lock = variable_get('islandora_object_lock_duration', 30);
   $locks = array();
-  if (variable_get(islandora_object_lock_duration_variable_name_for_pid($pid), $global_default_lock) ==
-    $global_default_lock) {
-    // Loop thru the parents, getting locks length's for each,
-    // and add them to our $locks array().
+  $current_object_lock = islandora_object_lock_get_collection_lock($pid);
+  array_push(
+    $locks,
+    variable_get('islandora_object_lock_duration', 30)
+  );
+  if ($current_object_lock == NULL) {
+    // Add our global default to our locks list,
+    // incase there are no other parent locks set.
     foreach ($parent_pids as $parent_pid) {
+      $lock = islandora_object_lock_get_collection_lock($parent_pid);
       array_push(
         $locks,
-        variable_get(islandora_object_lock_duration_variable_name_for_pid($parent_pid), $global_default_lock)
+        $lock->duration
       );
     }
   }
   else {
     array_push(
-      $locks,
-      variable_get(islandora_object_lock_duration_variable_name_for_pid($pid), $global_default_lock)
+    $locks,
+    $global_default_lock
     );
   }
-
   // Take the highest lock length parent, and
   // apply that to the object being locked.
   return max($locks);
