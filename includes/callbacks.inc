@@ -14,6 +14,7 @@
  *   The object that is locked
  */
 function islandora_object_lock_request_unlock(AbstractObject $object) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   global $user;
 
   if (islandora_object_lock_is_locked($object)) {

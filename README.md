@@ -10,7 +10,9 @@ CONTENTS OF THIS FILE
 SUMMARY
 -------
 
-Islandora Object Lock allows users to lock objects to prevent modifications by other users. It also automatically locks objects when edits are being made to datastreams through the XML Form Builder.
+Islandora Object Lock allows users to lock objects to prevent modifications by
+other users. It also automatically locks objects when edits are being made to
+datastreams through the XML Form Builder.
 
 REQUIREMENTS
 ------------
@@ -32,4 +34,6 @@ Visit /admin/islandora/object-lock to set the default lock duration.
 TROUBLESHOOTING
 ---------------
 
-Drupal user #1 is required to be in place to unlock objects during cron when the locks have expired.
+Drupal user #1 is required to be in place to unlock objects during cron when
+the locks have expired.  To unlock unlock objects manualy one may have to be an
+administrator.
