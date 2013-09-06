@@ -51,6 +51,8 @@ function islandora_object_lock_form_lock($form, $form_state, AbstractFedoraObjec
  *   The form state.
  */
 function islandora_object_lock_form_lock_submit($form, &$form_state) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
   $pid = $form_state['values']['pid'];
   if ($form_state['values']['lock-op'] == 'lock') {
     islandora_object_lock_set_object_lock($pid);

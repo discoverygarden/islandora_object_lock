@@ -158,6 +158,8 @@ function islandora_object_lock_permission() {
  * Implements hook_cron().
  */
 function islandora_object_lock_cron() {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
   $repository = new IslandoraTuque();
   $lock_uri = ISLANDORA_RELS_EXT_URI;
   $lock_pred = ISLANDORA_OBJECT_LOCK_EXPIRY_PRED;
@@ -200,6 +202,8 @@ EOQ;
  */
 function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(&$form, &$form_state, $form_id) {
   module_load_include('inc', 'islandora', 'includes/utilities');
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
   $pid = arg(2);
   if (islandora_is_valid_pid($pid)) {
     $object = islandora_object_load($pid);
@@ -218,6 +222,8 @@ function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(
       drupal_set_message(t('The object has been locked.'));
     }
   }
+
+  $form['#validate'][] = 'islandora_object_lock_islandora_edit_datastream_form_validate';
 }
 
 /**
@@ -226,6 +232,8 @@ function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(
  * Release a lock if a datastream is modified.
  */
 function islandora_object_lock_islandora_datastream_modified(AbstractObject $object, AbstractDatastream $datastream) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
   $excluded_datastreams = array('RELS-EXT', 'POLICY');
   if (!in_array($datastream->id, $excluded_datastreams)) {
     $locked = islandora_object_lock_is_locked($object);
@@ -327,6 +335,7 @@ function islandora_object_lock_remove_object_lock($pid) {
  *   TRUE if access is granted.
  */
 function islandora_object_lock_access_lock(AbstractObject $object, $op = NULL) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   $perm = FALSE;
 
   $locked = islandora_object_lock_is_locked($object);
@@ -350,32 +359,6 @@ function islandora_object_lock_access_lock(AbstractObject $object, $op = NULL) {
   }
 
   return $perm;
-}
-
-/**
- * Check if an object is locked.
- *
- * @param AbstractObject $object
- *   The object to check.
- *
- * @return bool
- *   TRUE if the object is locked.
- */
-function islandora_object_lock_is_locked(AbstractObject $object) {
-  $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
-  if (count($lock) < 1) {
-    return FALSE;
-  }
-  else {
-    $expiry_time = strtotime($lock[0]['object']['value']);
-    if ($expiry_time < time()) {
-      islandora_object_lock_remove_object_lock($object->id);
-      return FALSE;
-    }
-    else {
-      return TRUE;
-    }
-  }
 }
 
 /**
@@ -528,4 +511,63 @@ function islandora_object_lock_mail($key, &$message, $params) {
       );
       break;
   }
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function islandora_object_lock_form_islandora_delete_datastream_form_alter(&$form, &$form_state, $form_id) {
+  $form['#validate'][] = 'islandora_object_lock_islandora_delete_datastream_form_validate';
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function islandora_object_lock_form_islandora_revert_datastream_version_form_alter(&$form, &$form_state, $form_id) {
+  $form['#validate'][] = 'islandora_object_lock_islandora_revert_datastream_form_validate';
+}
+
+/**
+ * Validate function for islandora_delete_datastream.
+ *
+ * @param array $form
+ *   The form.
+ * @param array $form_state
+ *   The form state.
+ */
+function islandora_object_lock_islandora_delete_datastream_form_validate($form, &$form_state) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
+  $datastream = $form_state['datastream'];
+  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, 'confirm');
+}
+
+/**
+ * Validate function for xml_form_builder_edit_datastream_form.
+ *
+ * @param array $form
+ *   The form.
+ * @param array $form_state
+ *   The form state.
+ */
+function islandora_object_lock_islandora_edit_datastream_form_validate($form, &$form_state) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
+  $datastream = $form_state['datastream'];
+  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, 'update');
+}
+
+/**
+ * Validate function for islandora_revert_datastream_version_form.
+ *
+ * @param array $form
+ *   The form.
+ * @param array $form_state
+ *   The form state.
+ */
+function islandora_object_lock_islandora_revert_datastream_form_validate($form, &$form_state) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
+  $object = islandora_object_load($form_state['object_id']);
+  islandora_object_lock_handle_possible_unlock_form_error($object, 'confirm');
 }
