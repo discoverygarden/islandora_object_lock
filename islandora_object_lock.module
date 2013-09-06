@@ -290,7 +290,6 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
       $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, "TRUE", RELS_TYPE_PLAIN_LITERAL);
     }
   }
-  watchdog('Object Locked', "Object $pid has been locked for $duration min");
 }
 
 /**
@@ -396,8 +395,8 @@ function islandora_object_lock_compute_duration($pid) {
   }
   else {
     array_push(
-    $locks,
-    $global_default_lock
+      $locks,
+      $global_default_lock
     );
   }
   // Take the highest lock length parent, and
