@@ -35,5 +35,5 @@ TROUBLESHOOTING
 ---------------
 
 Drupal user #1 is required to be in place to unlock objects during cron when
-the locks have expired.  To unlock unlock objects manualy one may have to be an
-administrator.
+the locks have expired.  To view the delete object locks list one may have to
+have an 'administrator' role.
