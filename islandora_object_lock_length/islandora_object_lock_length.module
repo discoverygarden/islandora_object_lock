@@ -55,9 +55,7 @@ function islandora_object_lock_length_manage_lock_form(array $form, array &$form
   module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
   $form_state['storage'] = array('pid' => $object->id);
   $global_lock_length = variable_get('islandora_object_lock_duration', 30);
-  $str = str_replace(array(':'), array('_'), $object->id);
   $collection_lock = islandora_object_lock_length_get_collection_lock($object->id);
-  dsm(array('collection lock' => $collection_lock));
   return array(
     'duration' => array(
       '#type' => 'textfield',
@@ -89,19 +87,15 @@ function islandora_object_lock_length_manage_lock_form_submit(array $form, array
   // global collection lock length.
   if ($form['duration']['#value'] != $default_lock_length && !$collection_lock_length) {
     islandora_object_lock_length_add_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
-    dsm(array('add collection lock' => $form['duration']['#value']));
   }
   else {
     // If this lock is the same as the global lock, remove it from
-    // the collection locks table. This should not happen, just for
-    // sanity reasons.
+    // the collection locks table.
     if ($default_lock_length == $collection_lock_length->duration) {
       islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
-      dsm(array('remove collection lock' => $form['duration']['#value']));
     }
     else {
       islandora_object_lock_length_edit_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
-      dsm(array('edit collection lock' => $form['duration']['#value']));
     }
   }
 }
