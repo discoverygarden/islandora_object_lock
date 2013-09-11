@@ -1,0 +1,6 @@
+name = Islandora Object Locking Length
+description = Allows for collection level specific lock length
+core = 7.x
+dependencies[] = islandora_object_lock
+dependencies[] = islandora_basic_collection
+package = Islandora

@@ -1,0 +1,28 @@
+<?php
+/**
+ * @file
+ * Handles the install and uninstall of islandora_object_lock_length tables.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function islandora_object_lock_length_schema() {
+  $schema['islandora_object_lock_length_locks'] = array(
+    'description' => 'Table that stores collection level lock lengths.',
+    'fields' => array(
+      'pid' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'The PID for the collection lock.',
+      ),
+      'duration' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'description' => 'Length of the PID lock duration.',
+      ),
+    ),
+    'primary key' => array('pid'),
+  );
+  return $schema;
+}

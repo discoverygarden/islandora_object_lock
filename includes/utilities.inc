@@ -30,37 +30,6 @@ function islandora_object_lock_handle_possible_lock_notice(AbstractObject $objec
 }
 
 /**
- * Remove a lock from an object.
- *
- * @param string $pid
- *   The object's PID.
- */
-function islandora_object_lock_remove_object_lock($pid) {
-  $object = islandora_object_load($pid);
-  $locking_user = islandora_object_lock_get_lock_username($object);
-
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
-
-  $xacml = new IslandoraXacml($object);
-
-  $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
-  if (!empty($was_management_rule)) {
-    $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
-    $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
-    if (empty($was_user_management_rule)) {
-      $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
-      $xacml->managementRule->removeUser($locking_user);
-    }
-  }
-  else {
-    $xacml->managementRule->clear();
-  }
-
-  $xacml->writeBackToFedora();
-}
-
-/**
  * Will get a number of object locks.
  *
  * @param int $offset

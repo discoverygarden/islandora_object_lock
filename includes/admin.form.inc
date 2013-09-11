@@ -31,8 +31,9 @@ function islandora_object_lock_admin_form() {
   // Settings tab.
   $form['islandora_object_lock_tabs']['settings']['islandora_object_lock_duration'] = array(
     '#type' => 'textfield',
-    '#title' => t('Lock duration (minutes)'),
+    '#title' => t('Global Lock duration (minutes)'),
     '#default_value' => variable_get('islandora_object_lock_duration', 30),
+    '#description' => t('Unless overridden in individual collection management pages, this will apply to all objects and collections.'),
   );
   $form['islandora_object_lock_tabs']['settings']['islandora_object_lock_cron_throttle'] = array(
     '#type' => 'textfield',
