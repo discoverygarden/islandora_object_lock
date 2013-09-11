@@ -285,21 +285,21 @@ function islandora_object_lock_access_lock(AbstractObject $object, $op = NULL) {
  *   The duration in minutes.
  */
 function islandora_object_lock_compute_duration($pid) {
-  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
   $locks = array();
-
+  $lock = variable_get('islandora_object_lock_duration', 30);
+  array_push(
+    $locks,
+    $lock
+  );
   if (module_exists('islandora_object_lock_length')) {
     module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
     $lock = islandora_object_lock_length_compute_collection_lock_length($pid);
-  }
-  else {
-    $lock = variable_get('islandora_object_lock_duration', 30);
     array_push(
       $locks,
-      $lock->duration
+      $lock
     );
   }
-  
+
   // Take the highest lock length available, and
   // apply that to the object being locked.
   return max($locks);
