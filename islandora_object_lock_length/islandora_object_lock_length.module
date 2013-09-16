@@ -116,6 +116,12 @@ function islandora_object_lock_length_compute_collection_lock_length($pid) {
   $parent_pids = islandora_basic_collection_get_parent_pids($object);
   $global_default_lock = variable_get('islandora_object_lock_duration', 30);
 
+  // Add the global default lock to avoid a potential warning.
+  array_push(
+    $locks,
+    $global_default_lock
+  );
+
   // Get local collection lock if it exists.
   $current_object_lock = islandora_object_lock_length_get_collection_lock($pid);
   if (isset($lock->duration)) {
