@@ -293,13 +293,14 @@ function islandora_object_lock_compute_duration($pid) {
   );
   if (module_exists('islandora_object_lock_length')) {
     module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
-    $lock = islandora_object_lock_length_compute_collection_lock_length($pid);
-    array_push(
-      $locks,
-      $lock
-    );
-  }
+    $locks = islandora_object_lock_length_get_available_lock_length($pid);
 
+  }
+  drupal_set_message(t('Lock duration set for @time min(s).',
+    array(
+      '@time' => max($locks),
+    )
+  ));
   // Take the highest lock length available, and
   // apply that to the object being locked.
   return max($locks);
