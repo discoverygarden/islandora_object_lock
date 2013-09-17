@@ -104,43 +104,49 @@ function islandora_object_lock_length_manage_lock_form_submit(array $form, array
  *
  * @param string $pid
  *   The pid to compute the duration for.
+ * @param array $locks
+ *   The locks array to manipulate.
  *
  * @return array
  *   The array of parent collection lock lengths.
  */
-function islandora_object_lock_length_compute_collection_lock_length($pid) {
+function islandora_object_lock_length_compute_collection_lock_length($pid, $locks) {
   module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
   module_load_include('inc', 'islandora_basic_collection', 'includes/utilities');
-  $locks = array();
   $object = islandora_object_load($pid);
   $parent_pids = islandora_basic_collection_get_parent_pids($object);
   $global_default_lock = variable_get('islandora_object_lock_duration', 30);
 
-  // Add the global default lock to avoid a potential warning.
-  array_push(
-    $locks,
-    $global_default_lock
-  );
-
+  // Empty the locks array.
+  $locks = array();
   // Get local collection lock if it exists.
   $current_object_lock = islandora_object_lock_length_get_collection_lock($pid);
-  if (isset($lock->duration)) {
+  if (isset($current_object_lock) && isset($current_object_lock->duration)) {
+    // This is a collection with a set lock length.
     array_push(
       $locks,
-      $lock->duration
+      $current_object_lock->duration
     );
   }
-  // Check this objects parents for collection level locks,
-  // and include them in our locks array.
-  foreach ($parent_pids as $parent_pid) {
-    $lock = islandora_object_lock_length_get_collection_lock($parent_pid);
-    if (isset($lock->duration)) {
-      array_push(
-        $locks,
-        $lock->duration
-      );
+  else {
+    // Check this objects parents for collection level locks,
+    // and include them in our locks array.
+    foreach ($parent_pids as $parent_pid) {
+      $lock = islandora_object_lock_length_get_collection_lock($parent_pid);
+      if (isset($lock->duration)) {
+        array_push(
+          $locks,
+          $lock->duration
+        );
+      }
     }
   }
-
-  return max($locks);
+  // If this locks array is still empty, add the global lock.
+  if (empty($locks)) {
+    array_push(
+      $locks,
+      $global_default_lock
+    );
+  }
+  return $locks;
 }
