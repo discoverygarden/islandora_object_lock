@@ -100,17 +100,15 @@ function islandora_object_lock_length_manage_lock_form_submit(array $form, array
 }
 
 /**
- * Computes collection level lock duration.
+ * Computes/gathers all collection level lock durations.
  *
  * @param string $pid
  *   The pid to compute the duration for.
- * @param array $locks
- *   The locks array to manipulate.
  *
  * @return array
  *   The array of parent collection lock lengths.
  */
-function islandora_object_lock_length_compute_collection_lock_length($pid, $locks) {
+function islandora_object_lock_length_get_available_lock_length($pid) {
   module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
   module_load_include('inc', 'islandora_basic_collection', 'includes/utilities');
   $object = islandora_object_load($pid);
