@@ -159,6 +159,19 @@ function islandora_object_lock_islandora_datastream_modified(AbstractObject $obj
 }
 
 /**
+ * Implements hook_islandora_datastream_access().
+ *
+ * Prevent deletion of RELS-EXT datastream through the UI when object is locked.
+ */
+function islandora_object_lock_islandora_datastream_access($op, $object, $user) {
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+
+  if ($op == ISLANDORA_PURGE && $object->id == 'RELS-EXT' && islandora_object_lock_is_locked($object->parent)) {
+    return FALSE;
+  }
+}
+
+/**
  * Lock an object.
  *
  * @param string $pid
