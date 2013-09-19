@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 /**
  * @file
@@ -18,11 +18,11 @@
  */
 function islandora_object_lock_length_add_collection_lock($pid, $duration) {
   db_insert('islandora_object_lock_length_locks')
-  ->fields(array(
-    'pid' => $pid,
-    'duration' => $duration,
-     ))
-  ->execute();
+    ->fields(array(
+      'pid' => $pid,
+      'duration' => $duration,
+    ))
+    ->execute();
 }
 
 /**
