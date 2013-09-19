@@ -290,8 +290,10 @@ function islandora_object_lock_compute_duration($pid) {
 
   if (module_exists('islandora_object_lock_length')) {
     module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
-    $lock = islandora_object_lock_length_get_available_lock_length($pid);
-    $locks = array_merge($locks, $lock);
+    $collection_locks = islandora_object_lock_length_get_available_lock_length($pid);
+    if ($collection_locks) {
+      $locks = $collection_locks;
+    }
   }
 
   drupal_set_message(t('Lock duration set for @time min(s).',

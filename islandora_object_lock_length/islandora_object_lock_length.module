@@ -1,8 +1,8 @@
-<?php 
+<?php
 
 /**
  * @file
- * This drupal module contains functionality to allow for 
+ * This drupal module contains functionality to allow for
  * collection level specific lock length configuration. The
  * primary entry point for this module is
  * hook_islandora_basic_collection_build_manage_object().
@@ -111,9 +111,6 @@ function islandora_object_lock_length_manage_lock_form_submit(array $form, array
 function islandora_object_lock_length_get_available_lock_length($pid) {
   module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
   module_load_include('inc', 'islandora_basic_collection', 'includes/utilities');
-  $object = islandora_object_load($pid);
-  $parent_pids = islandora_basic_collection_get_parent_pids($object);
-  $global_default_lock = variable_get('islandora_object_lock_duration', 30);
 
   // Empty the locks array.
   $locks = array();
@@ -121,30 +118,19 @@ function islandora_object_lock_length_get_available_lock_length($pid) {
   $current_object_lock = islandora_object_lock_length_get_collection_lock($pid);
   if (isset($current_object_lock) && isset($current_object_lock->duration)) {
     // This is a collection with a set lock length.
-    array_push(
-      $locks,
-      $current_object_lock->duration
-    );
+    $locks[] = $current_object_lock->duration;
   }
   else {
+    $object = islandora_object_load($pid);
+    $parent_pids = islandora_basic_collection_get_parent_pids($object);
     // Check this objects parents for collection level locks,
     // and include them in our locks array.
     foreach ($parent_pids as $parent_pid) {
       $lock = islandora_object_lock_length_get_collection_lock($parent_pid);
-      if (isset($lock->duration)) {
-        array_push(
-          $locks,
-          $lock->duration
-        );
+      if (isset($lock->duration) && $lock->duration) {
+        $locks[] = $lock->duration;
       }
     }
-  }
-  // If this locks array is still empty, add the global lock.
-  if (empty($locks)) {
-    array_push(
-      $locks,
-      $global_default_lock
-    );
   }
   return $locks;
 }
