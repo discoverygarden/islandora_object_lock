@@ -92,20 +92,12 @@ function islandora_object_lock_cron() {
 EOQ;
   $results = $repository->repository->ri->sparqlQuery($query);
   if (count($results)) {
-    drupal_save_session(FALSE);
-
-    $original_user = $GLOBALS['user'];
-    $GLOBALS['user'] = user_load(1);
-
     $loop_count = ($max_per_cron > count($results)) ? count($results) : $max_per_cron;
     for ($i = 0; $i < $loop_count; $i++) {
       $pid = $results[$i]['expired']['value'];
       islandora_object_lock_remove_object_lock($pid);
       watchdog('islandora_object_lock', 'Object lock removed by cron for PID: @pid', array('@pid' => $pid));
     }
-
-    $GLOBALS['user'] = $original_user;
-    drupal_save_session(TRUE);
   }
 }
 
@@ -214,11 +206,12 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
  *   The object's PID.
  */
 function islandora_object_lock_remove_object_lock($pid) {
+  drupal_save_session(FALSE);
+  $original_user = $GLOBALS['user'];
+  $GLOBALS['user'] = user_load(1);
+
   $object = islandora_object_load($pid);
   $locking_user = islandora_object_lock_get_lock_username($object);
-
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
   $xacml = new IslandoraXacml($object);
 
@@ -235,6 +228,12 @@ function islandora_object_lock_remove_object_lock($pid) {
     $xacml->managementRule->clear();
   }
   $xacml->writeBackToFedora();
+
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
+
+  $GLOBALS['user'] = $original_user;
+  drupal_save_session(TRUE);
 }
 
 /**
