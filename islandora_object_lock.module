@@ -213,9 +213,6 @@ function islandora_object_lock_remove_object_lock($pid) {
   $object = islandora_object_load($pid);
   $locking_user = islandora_object_lock_get_lock_username($object);
 
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
-  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
-
   $xacml = new IslandoraXacml($object);
 
   $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
@@ -231,6 +228,9 @@ function islandora_object_lock_remove_object_lock($pid) {
     $xacml->managementRule->clear();
   }
   $xacml->writeBackToFedora();
+
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
+  $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
 
   $GLOBALS['user'] = $original_user;
   drupal_save_session(TRUE);
