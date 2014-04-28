@@ -155,7 +155,7 @@ function islandora_object_lock_islandora_datastream_modified(AbstractObject $obj
  *
  * @param string $pid
  *   The object's PID.
- * @param stdClass $user
+ * @param User $user
  *   The user object for the lock owner.
  * @param int $duration
  *   The length of the lock in minutes.
@@ -298,7 +298,9 @@ function islandora_object_lock_compute_duration($pid) {
   drupal_set_message(t('Lock duration set for @time min(s).',
     array(
       '@time' => max($locks),
-    )
+    ),
+      'status',
+      FALSE
   ));
   // Take the highest lock length available, and
   // apply that to the object being locked.
