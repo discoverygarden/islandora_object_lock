@@ -295,13 +295,7 @@ function islandora_object_lock_compute_duration($pid) {
     }
   }
 
-  drupal_set_message(t('Lock duration set for @time min(s).',
-    array(
-      '@time' => max($locks),
-    ),
-      'status',
-      FALSE
-  ));
+  drupal_set_message(t('Lock duration set for @time min(s).', array('@time' => max($locks))), 'status');
   // Take the highest lock length available, and
   // apply that to the object being locked.
   return max($locks);

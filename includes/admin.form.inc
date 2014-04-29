@@ -67,7 +67,7 @@ function islandora_object_lock_admin_form() {
   $form['actions']['#type'] = 'actions';
   $form['actions']['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Submit'),
+    '#value' => t('Save'),
   );
   $form['#submit'][] = 'system_settings_form_submit';
   $form['#theme'] = 'system_settings_form';
