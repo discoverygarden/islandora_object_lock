@@ -136,10 +136,11 @@ function islandora_object_lock_user_has_lock(AbstractObject $object) {
  *
  * @param AbstractObject $object
  *   The object to check.
- * @param AbstractDatastream $datastream
- *   The object being editing, so we might redirect more intelligently.
+ * @param string|NULL $path_suffix
+ *   A path relative to "islandora/object/%islandora_object" which can be used
+ *   to "retry" an operation.
  */
-function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, AbstractDatastream $datastream = NULL, $path_suffix = 'edit') {
+function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $path_suffix = NULL) {
   $locked = islandora_object_lock_is_locked($object);
   $owned = islandora_object_lock_user_has_lock($object);
 
@@ -147,17 +148,20 @@ function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject 
 
   if (!$owned) {
     if ($locked) {
-      $message = t('This object has been locked by another user. You can request that they <a href="@release_url">release</a> the lock.', array(
-        '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
-          'query' => array(
-            'destination' => $manage_page,
-          ),
-        )),
-      ));
+      $message = t('This object has been locked by another user.');
+      if (islandora_object_lock_request_unlock_access()) {
+        $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
+          '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
+            'query' => array(
+              'destination' => $manage_page,
+            ),
+          )),
+        ));
+      }
     }
-    elseif ($datastream !== NULL && $datastream instanceof AbstractDatastream) {
+    elseif ($path_suffix !== NULL) {
       $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>. Any changes since your last save will be lost.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/datastream/{$datastream->id}/{$path_suffix}"),
+        '@edit_url' => url("islandora/object/{$object->id}/{$path_suffix}"),
       ));
     }
     else {
