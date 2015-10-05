@@ -119,8 +119,15 @@ function islandora_object_lock_form_xml_form_builder_edit_datastream_form_alter(
       $username = islandora_object_lock_get_lock_username($object);
       global $user;
       if ($username != $user->name) {
-        drupal_set_message(t('This object has been locked by another user.'), 'error');
-        drupal_goto("islandora/object/$object->id/manage/datastreams");
+        $manage_page = "islandora/object/$object->id/manage/datastreams";
+        drupal_set_message(t('This object has been locked by another user. You can request that they <a href="@release_url">release</a> the lock.', array(
+          '@release_url' => url("islandora/object/{$pid}/request_unlock", array(
+            'query' => array(
+              'destination' => $manage_page,
+            ),
+          )),
+        )), 'error');
+        drupal_goto($manage_page);
       }
     }
     else {
@@ -415,7 +422,7 @@ function islandora_object_lock_islandora_delete_datastream_form_validate($form, 
   module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
 
   $datastream = $form_state['datastream'];
-  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, 'confirm');
+  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, $datastream, 'delete');
 }
 
 /**
@@ -430,7 +437,7 @@ function islandora_object_lock_islandora_edit_datastream_form_validate($form, &$
   module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
 
   $datastream = $form_state['datastream'];
-  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, 'update');
+  islandora_object_lock_handle_possible_unlock_form_error($datastream->parent, $datastream);
 }
 
 /**
@@ -445,5 +452,5 @@ function islandora_object_lock_islandora_revert_datastream_form_validate($form, 
   module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
 
   $object = islandora_object_load($form_state['object_id']);
-  islandora_object_lock_handle_possible_unlock_form_error($object, 'confirm');
+  islandora_object_lock_handle_possible_unlock_form_error($object, $object[$form_state['dsid']]);
 }

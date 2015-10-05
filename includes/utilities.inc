@@ -117,15 +117,55 @@ function islandora_object_lock_is_locked(AbstractObject $object) {
 }
 
 /**
+ * Helper to check if the current user has the lock.
+ *
+ * @param AbstractObject $object
+ *   The object to be checked.
+ *
+ * @return bool
+ *   TRUE if the current user has a lock on the object; otherwise, FALSE.
+ */
+function islandora_object_lock_user_has_lock(AbstractObject $object) {
+  global $user;
+
+  return islandora_object_lock_is_locked($object) && $user->name == islandora_object_lock_get_lock_username($object);
+}
+
+/**
  * Triggers a form error if the object is not locked.
  *
  * @param AbstractObject $object
  *   The object to check.
- * @param string $form_element
- *   A form element to call the form_set_error on.
+ * @param AbstractDatastream $datastream
+ *   The object being editing, so we might redirect more intelligently.
  */
-function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $form_element) {
-  if (!islandora_object_lock_is_locked($object)) {
-    form_set_error($form_element, t('This object needs to be locked for editing.'));
+function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, AbstractDatastream $datastream = NULL, $path_suffix = 'edit') {
+  $locked = islandora_object_lock_is_locked($object);
+  $owned = islandora_object_lock_user_has_lock($object);
+
+  $manage_page = "islandora/object/$object->id/manage/datastreams";
+
+  if (!$owned) {
+    if ($locked) {
+      $message = t('This object has been locked by another user. You can request that they <a href="@release_url">release</a> the lock.', array(
+        '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
+          'query' => array(
+            'destination' => $manage_page,
+          ),
+        )),
+      ));
+    }
+    elseif ($datastream !== NULL && $datastream instanceof AbstractDatastream) {
+      $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>. Any changes since your last save will be lost.', array(
+        '@edit_url' => url("islandora/object/{$object->id}/datastream/{$datastream->id}/{$path_suffix}"),
+      ));
+    }
+    else {
+      $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>.', array(
+        '@edit_url' => url("islandora/object/{$object->id}/manage/datastreams/locking/lock"),
+      ));
+    }
+    form_set_error(NULL, filter_xss($message));
+    drupal_goto($manage_page);
   }
 }
