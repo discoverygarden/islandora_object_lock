@@ -361,6 +361,7 @@ function islandora_object_lock_mail($key, &$message, $params) {
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_delete_datastream_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($datastream) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $datastream->parent, $datastream->id, "datastream/{$datastream->id}/delete");
 }
@@ -369,6 +370,7 @@ function islandora_object_lock_form_islandora_delete_datastream_form_alter(&$for
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_delete_object_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'delete');
 }
@@ -377,14 +379,16 @@ function islandora_object_lock_form_islandora_delete_object_form_alter(&$form, &
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_xml_form_builder_datastream_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object, $dsid) = $form_state['build_info']['args'];
-  islandora_object_lock_acquire_during_alter($form, $form_state, $object, $dsid, "datastream/$dsid/edit");
+  islandora_object_lock_acquire_during_alter($form, $form_state, $object, $dsid, "datastream/$dsid/edit", TRUE);
 }
 
 /**
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_xml_form_builder_create_metadata_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object);
 }
@@ -393,6 +397,7 @@ function islandora_object_lock_form_xml_form_builder_create_metadata_form_alter(
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_revert_datastream_version_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($datastream, $version) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $datastream->parent, $datastream->id, "datastream/{$datastream->id}/revert");
 }
@@ -401,6 +406,7 @@ function islandora_object_lock_form_islandora_revert_datastream_version_form_alt
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_datastream_version_replace_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($datastream) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $datastream->parent, $datastream->id, "datastream/{$datastream->id}/replace");
 }
@@ -409,6 +415,7 @@ function islandora_object_lock_form_islandora_datastream_version_replace_form_al
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_regenerate_datastream_derivative_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($datastream) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $datastream->parent, $datastream->id, "datastream/{$datastream->id}/regenerate");
 }
@@ -417,6 +424,7 @@ function islandora_object_lock_form_islandora_regenerate_datastream_derivative_f
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_regenerate_object_derivatives_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'regenerate');
 }
@@ -425,79 +433,8 @@ function islandora_object_lock_form_islandora_regenerate_object_derivatives_form
  * Implements hook_form_BASE_FORM_ID_alter().
  */
 function islandora_object_lock_form_islandora_object_properties_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'manage/properties');
 }
 
-/**
- * Helper to inject our lock validation and release logic.
- *
- * @param array $form
- *   The form structure being output.
- * @param array $form_state
- *   The form state for the given form.
- * @param AbstractObject $object
- *   The object being modified by the form process.
- * @param string|NULL $dsid
- *   A string indicating which datastream is being modified, or NULL to
- *   indicate that it is the object being modified.
- * @param string $path_suffix
- *   A path suffix relative to 'islandora/object/%islandora_object'
- *   to use when redirecting.
- */
-function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL) {
-  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/utilities');
-
-  $locked = islandora_object_lock_is_locked($object);
-  if ($locked) {
-    if (!islandora_object_lock_user_has_lock($object)) {
-      $manage_page = "islandora/object/$object->id/manage";
-      $message = t('This object has been locked by another user.');
-      if (islandora_object_lock_request_unlock_access()) {
-        $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
-          '@release_url' => url("islandora/object/{$pid}/request_unlock", array(
-            'query' => array(
-              'destination' => $manage_page,
-            ),
-          )),
-        ));
-      }
-      drupal_set_message(filter_xss($message), 'error');
-      drupal_goto($manage_page);
-    }
-  }
-  else {
-    islandora_object_lock_set_object_lock($object->id);
-    $form['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
-    drupal_set_message(t('The object has been locked.'));
-  }
-
-  $form_state['islandora_object_lock_info'] = array(
-    'pid' => $object->id,
-    'dsid' => $dsid,
-    'suffix' => $path_suffix,
-  );
-
-  $form['#validate'][] = 'islandora_object_lock_check_lock_validation_handler';
-}
-
-/**
- * Form validation handler.
- *
- * Check that we have the lock; otherwise, we will be redirected with an error
- * message output.
- */
-function islandora_object_lock_check_lock_validation_handler(&$form, &$form_state) {
-  $info = $form_state['islandora_object_lock_info'];
-  $object = islandora_object_load($info['pid']);
-  islandora_object_lock_handle_possible_unlock_form_error($object, $info['suffix']);
-}
-
-/**
- * Form submission handler.
- *
- * Release the lock (assuming we have it).
- */
-function islandora_object_lock_release_lock_submit_handler(&$form, &$form_state) {
-  islandora_object_lock_remove_object_lock($form_state['islandora_object_lock_info']['pid']);
-}

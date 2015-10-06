@@ -139,8 +139,11 @@ function islandora_object_lock_user_has_lock(AbstractObject $object) {
  * @param string|NULL $path_suffix
  *   A path relative to "islandora/object/%islandora_object" which can be used
  *   to "retry" an operation.
+ * @param bool $allow_acquisition
+ *   A boolean indicating if the $path_suffix attempts to automatically acquire
+ *   the lock when accessed.
  */
-function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $path_suffix = NULL) {
+function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $path_suffix = NULL, $allow_acquisition = FALSE) {
   $locked = islandora_object_lock_is_locked($object);
   $owned = islandora_object_lock_user_has_lock($object);
 
@@ -159,17 +162,21 @@ function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject 
         ));
       }
     }
-    elseif ($path_suffix !== NULL) {
+    elseif ($path_suffix !== NULL && $allow_acquisition) {
       $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>. Any changes since your last save will be lost.', array(
         '@edit_url' => url("islandora/object/{$object->id}/{$path_suffix}"),
       ));
     }
     else {
-      $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/manage/datastreams/locking/lock"),
+      $message = t('You must have a lock on the object in order to perform this operation. To re-lock this object, please <a href="@edit_url">try again</a>.', array(
+        '@edit_url' => url("islandora/object/{$object->id}/manage/datastreams/locking/lock", array(
+          'query' => array(
+            'destination' => $path_suffix !== NULL ? "islandora/object/{$object->id}/$path_suffix" : NULL,
+          ),
+        )),
       ));
     }
-    form_set_error(NULL, filter_xss($message));
+    drupal_set_message(filter_xss($message), 'error');
     drupal_goto($manage_page);
   }
 }
