@@ -56,18 +56,62 @@ function islandora_object_lock_length_manage_lock_form(array $form, array &$form
   $form_state['storage'] = array('pid' => $object->id);
   $global_lock_length = variable_get('islandora_object_lock_duration', 30);
   $collection_lock = islandora_object_lock_length_get_collection_lock($object->id);
-  return array(
-    'duration' => array(
-      '#type' => 'textfield',
-      '#title' => t('Collection level Lock duration (minutes)'),
-      '#default_value' => (isset($collection_lock->duration) ? $collection_lock->duration : $global_lock_length),
-      '#description' => t('Override default lock length for all children of this collection (objects and subcollections).'),
+  $default_duration = (isset($collection_lock->duration) ? $collection_lock->duration : $global_lock_length);
+  if ($default_duration == 'indefinite' || $default_duration == FALSE) {
+    $default_choice = 'indefinite';
+  }
+  else {
+    $default_choice = 'minutes';
+  }
+  $form['choice'] = array(
+    '#type' => 'radios',
+    '#title' => t('Collection level lock'),
+    '#options' => array(
+      'indefinite' => t('Indefinite'),
+      'minutes' => t('Minutes'),
     ),
-    'submit' => array(
-      '#type' => 'submit',
-      '#value' => t('Set collection level lock duration'),
+    '#default_value' => $default_choice,
+  );
+  $form['duration'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Collection level Lock duration (minutes)'),
+    '#default_value' => ($default_choice == 'minutes') ? $default_duration : '',
+    '#description' => t('Override default lock length for all children of this collection (objects and subcollections).'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="choice"]' => array('value' => 'minutes'),
+      ),
     ),
   );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Set collection level lock duration'),
+  );
+  $form['remove_lock'] = array(
+    '#type' => 'submit',
+    '#value' => t('Remove existing collection lock'),
+    '#access' => isset($collection_lock->duration) ? TRUE : FALSE,
+  );
+  return $form;
+}
+
+/**
+ * Validation for the collection length lock form.
+ *
+ * @param array $form
+ *   An array representing a form within Drupal.
+ * @param array $form_state
+ *   An array containing the Drupal form state.
+ */
+function islandora_object_lock_length_manage_lock_form_validate($form, $form_state) {
+  if ($form_state['values']['choice'] == 'minutes') {
+    if (empty($form_state['values']['duration'])) {
+      form_error($form['duration'], t('Please specify a non-empty duration.'));
+    }
+    else {
+      element_validate_integer_positive($form['duration'], $form_state);
+    }
+  }
 }
 
 /**
@@ -80,22 +124,35 @@ function islandora_object_lock_length_manage_lock_form(array $form, array &$form
  */
 function islandora_object_lock_length_manage_lock_form_submit(array $form, array &$form_state) {
   module_load_include('inc', 'islandora_object_lock_length', 'includes/utilities');
-  // Get Collection lock duration if it is already set.
-  $collection_lock_length = islandora_object_lock_length_get_collection_lock($form_state['storage']['pid']);
-  $default_lock_length = variable_get('islandora_object_lock_duration', 30);
+  if ($form_state['triggering_element']['#parents'] == array('submit')) {
+    // Get Collection lock duration if it is already set.
+    $collection_lock_length = islandora_object_lock_length_get_collection_lock($form_state['storage']['pid']);
+    $default_lock_length = variable_get('islandora_object_lock_duration', 30);
 
-  // No need to add the lock value if it is the same as the global default lock.
-  if ($form['duration']['#value'] != $default_lock_length) {
-    // Delete old value, if it exists.
-    if (isset($collection_lock_length->duration)) {
-      islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid']);
+    // No need to add the lock value if it is the same as the global default
+    // lock. See if the choice and default values match before we do anything.
+    $duration = $form_state['values']['duration'];
+    $choice = $form_state['values']['choice'];
+    if (($choice == 'minutes' && $duration != $default_lock_length) || ($choice == 'indefinite' && $default_lock_length != FALSE)) {
+      // Delete old value, if it exists.
+      if (isset($collection_lock_length->duration)) {
+        islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid']);
+      }
+      // Add the specified lock length.
+      $duration = $form_state['values']['choice'] == 'minutes' ? $form_state['values']['duration'] : 'indefinite';
+      islandora_object_lock_length_add_collection_lock($form_state['storage']['pid'], $duration);
     }
-    // Add the specified lock length.
-    islandora_object_lock_length_add_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
+    // If the value is being set back to default, remove the previous entry.
+    if ($collection_lock_length) {
+      if (($choice == 'minutes' && $form_state['values']['duration'] == $default_lock_length) || ($choice == 'indefinite' && $default_lock_length == FALSE)) {
+        islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid'], $form_state['values']['duration']);
+      }
+    }
+    drupal_set_message(t('Collection level lock has been set.'));
   }
-  // If the value is being set back to default, remove the previous entry.
-  if (isset($collection_lock_length) && $form['duration']['#value'] == $default_lock_length) {
-    islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid'], $form['duration']['#value']);
+  else {
+    drupal_set_message(t('The existing collection lock has been removed.'));
+    islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid'], $form_state['values']['duration']);
   }
 }
 
@@ -118,7 +175,7 @@ function islandora_object_lock_length_get_available_lock_length($pid) {
   $current_object_lock = islandora_object_lock_length_get_collection_lock($pid);
   if (isset($current_object_lock) && isset($current_object_lock->duration)) {
     // This is a collection with a set lock length.
-    $locks[] = $current_object_lock->duration;
+    $locks[] = $current_object_lock->duration == 'indefinite' ? FALSE : $current_object_lock->duration;
   }
   else {
     $object = islandora_object_load($pid);
@@ -128,7 +185,7 @@ function islandora_object_lock_length_get_available_lock_length($pid) {
     foreach ($parent_pids as $parent_pid) {
       $lock = islandora_object_lock_length_get_collection_lock($parent_pid);
       if (isset($lock->duration) && $lock->duration) {
-        $locks[] = $lock->duration;
+        $locks[] = $lock->duration == 'indefinite' ? FALSE : $lock->duration;
       }
     }
   }

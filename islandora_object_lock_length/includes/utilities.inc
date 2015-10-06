@@ -26,22 +26,6 @@ function islandora_object_lock_length_add_collection_lock($pid, $duration) {
 }
 
 /**
- * Edit a collection lock.
- *
- * @param string $pid
- *   The pid of the collection to edit the lock.
- *
- * @param string $duration
- *   The length of the lock duration.
- */
-function islandora_object_lock_length_edit_collection_lock($pid, $duration) {
-  db_update('islandora_object_lock_length_locks')
-  ->fields(array('duration' => $duration))
-  ->condition('pid', $pid, '=')
-  ->execute();
-}
-
-/**
  * Remove a collection lock.
  *
  * @param string $pid
