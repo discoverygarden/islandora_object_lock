@@ -387,15 +387,6 @@ function islandora_object_lock_form_xml_form_builder_datastream_form_alter(&$for
 /**
  * Implements hook_form_BASE_FORM_ID_alter().
  */
-function islandora_object_lock_form_xml_form_builder_create_metadata_form_alter(&$form, &$form_state, $form_id) {
-  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
-  list($object) = $form_state['build_info']['args'];
-  islandora_object_lock_acquire_during_alter($form, $form_state, $object);
-}
-
-/**
- * Implements hook_form_BASE_FORM_ID_alter().
- */
 function islandora_object_lock_form_islandora_revert_datastream_version_form_alter(&$form, &$form_state, $form_id) {
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($datastream, $version) = $form_state['build_info']['args'];
@@ -436,4 +427,22 @@ function islandora_object_lock_form_islandora_object_properties_form_alter(&$for
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'manage/properties');
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function islandora_object_lock_form_islandora_delete_datastream_version_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
+  list($datastream, $version) = $form_state['build_info']['args'];
+  islandora_object_lock_acquire_during_alter($form, $form_state, $datastream->parent, $datastream->id, "datastream/{$datastream->id}/version/$version/delete");
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter().
+ */
+function islandora_object_lock_form_islandora_add_datastream_form_alter(&$form, &$form_state, $form_id) {
+  form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
+  list($object) = $form_state['build_info']['args'];
+  islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'manage/datastreams/add');
 }
