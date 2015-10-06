@@ -155,7 +155,7 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
   }
   elseif ($allow_acquisition) {
     // Object is not locked, and have been instructed to automatically
-    // acquire/release it
+    // acquire/release it.
     islandora_object_lock_set_object_lock($object->id);
     $form['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
   }

@@ -437,4 +437,3 @@ function islandora_object_lock_form_islandora_object_properties_form_alter(&$for
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'manage/properties');
 }
-
