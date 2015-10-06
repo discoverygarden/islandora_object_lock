@@ -117,15 +117,16 @@ function islandora_object_lock_is_locked(AbstractObject $object) {
 }
 
 /**
- * Triggers a form error if the object is not locked.
+ * Helper to check if the current user has the lock.
  *
  * @param AbstractObject $object
- *   The object to check.
- * @param string $form_element
- *   A form element to call the form_set_error on.
+ *   The object to be checked.
+ *
+ * @return bool
+ *   TRUE if the current user has a lock on the object; otherwise, FALSE.
  */
-function islandora_object_lock_handle_possible_unlock_form_error(AbstractObject $object, $form_element) {
-  if (!islandora_object_lock_is_locked($object)) {
-    form_set_error($form_element, t('This object needs to be locked for editing.'));
-  }
+function islandora_object_lock_user_has_lock(AbstractObject $object) {
+  global $user;
+
+  return islandora_object_lock_is_locked($object) && $user->name == islandora_object_lock_get_lock_username($object);
 }
