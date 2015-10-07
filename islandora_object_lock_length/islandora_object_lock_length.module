@@ -151,8 +151,8 @@ function islandora_object_lock_length_manage_lock_form_submit(array $form, array
     drupal_set_message(t('Collection level lock has been set.'));
   }
   else {
-    drupal_set_message(t('The existing collection lock has been removed.'));
     islandora_object_lock_length_remove_collection_lock($form_state['storage']['pid'], $form_state['values']['duration']);
+    drupal_set_message(t('The existing collection lock has been removed.'));
   }
 }
 
