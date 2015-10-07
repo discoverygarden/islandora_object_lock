@@ -142,7 +142,7 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
       if (islandora_object_lock_request_unlock_access()) {
         // ... but you can ask them to release it.
         $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
-          '@release_url' => url("islandora/object/{$pid}/request_unlock", array(
+          '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
             'query' => array(
               'destination' => $manage_page,
             ),
