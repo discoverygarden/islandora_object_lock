@@ -8,12 +8,16 @@
 /**
  * Admin form.
  *
- * @return mixed
- *   Return the form array.
+ * @param array $form
+ *   An array representing a form within Drupal.
+ * @param array $form_state
+ *   An array containing the Drupal form state.
+ *
+ * @return array
+ *   The form to be rendered.
  */
-function islandora_object_lock_admin_form() {
+function islandora_object_lock_admin_form($form, $form_state) {
   module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
-  $form = array();
 
   // Tabs.
   $form['islandora_object_lock_tabs'] = array(
@@ -29,17 +33,37 @@ function islandora_object_lock_admin_form() {
   );
 
   // Settings tab.
+  $form['islandora_object_lock_tabs']['settings']['default'] = array(
+    '#type' => 'radios',
+    '#title' => t('Default global lock duration'),
+    '#options' => array(
+      'indefinite' => t('Indefinite'),
+      'minutes' => t('Minutes'),
+    ),
+    '#default_value' => variable_get('islandora_object_lock_duration', 30) ? 'minutes' : 'indefinite',
+  );
   $form['islandora_object_lock_tabs']['settings']['islandora_object_lock_duration'] = array(
     '#type' => 'textfield',
     '#title' => t('Global Lock duration (minutes)'),
     '#default_value' => variable_get('islandora_object_lock_duration', 30),
     '#description' => t('Unless overridden in individual collection management pages, this will apply to all objects and collections.'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="default"]' => array('value' => 'minutes'),
+      ),
+    ),
   );
   $form['islandora_object_lock_tabs']['settings']['islandora_object_lock_cron_throttle'] = array(
     '#type' => 'textfield',
     '#title' => t('Lock release cron throttle'),
     '#default_value' => variable_get('islandora_object_lock_cron_throttle', 30),
     '#description' => t('The number of locks to release during each cron process. Adjust if cron tasks are not being completed.'),
+  );
+  $form['islandora_object_lock_tabs']['settings']['modified_hook'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Lift locks on datastream modified'),
+    '#default_value' => variable_get('islandora_object_lock_lift_lock_on_modify', TRUE),
+    '#description' => t('When enabled this will cause locks to automatically release themselves when a datastream is modified on an object.'),
   );
 
   // Locks tab.
@@ -58,35 +82,60 @@ function islandora_object_lock_admin_form() {
     '#empty' => t('No object locks.'),
   );
 
-  $form['#submit'][] = 'islandora_object_lock_manage_locks_submit';
   $form['islandora_object_lock_tabs']['locks']['pager'] = array(
     '#type' => 'markup',
     '#markup' => theme('pager', array('quantity', count($locks_count))),
   );
 
-  $form['actions']['#type'] = 'actions';
-  $form['actions']['submit'] = array(
+  $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
   );
-  $form['#submit'][] = 'system_settings_form_submit';
-  $form['#theme'] = 'system_settings_form';
   return $form;
 }
 
 /**
- * This will delete the indicated locks.
+ * Validation for the admin form.
  *
  * @param array $form
- *   The form.
+ *   An array representing a form within Drupal.
  * @param array $form_state
- *   The form state.
+ *   An array containing the Drupal form state.
  */
-function islandora_object_lock_manage_locks_submit($form, $form_state) {
-  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+function islandora_object_lock_admin_form_validate($form, $form_state) {
+  if ($form_state['values']['default'] == 'minutes') {
+    if (empty($form_state['values']['islandora_object_lock_duration'])) {
+      form_error($form['islandora_object_lock_tabs']['settings']['islandora_object_lock_duration'], t('Please specify a non-empty duration.'));
+    }
+    else {
+      element_validate_integer_positive($form['islandora_object_lock_tabs']['settings']['islandora_object_lock_duration'], $form_state);
+    }
+  }
+}
 
-  foreach ($form_state['values']['islandora_object_locks_table'] as $pid => $option) {
-    if ($option) {
+/**
+ * Submit handler for the admin form.
+ *
+ * @param array $form
+ *   An array representing a form within Drupal.
+ * @param array $form_state
+ *   An array containing the Drupal form state.
+ */
+function islandora_object_lock_admin_form_submit($form, $form_state) {
+  if ($form_state['values']['default'] == 'indefinite') {
+    $duration = FALSE;
+  }
+  else {
+    $duration = $form_state['values']['islandora_object_lock_duration'];
+  }
+  variable_set('islandora_object_lock_duration', $duration);
+  variable_set('islandora_object_lock_cron_throttle', $form_state['values']['islandora_object_lock_cron_throttle']);
+  variable_set('islandora_object_lock_lift_lock_on_modify', $form_state['values']['modified_hook'] ? TRUE : FALSE);
+  // Handle lifting of locks.
+  $selected = array_filter($form_state['values']['islandora_object_locks_table']);
+  if (!empty($selected)) {
+    module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+    foreach ($selected as $pid => $option) {
       islandora_object_lock_remove_object_lock($pid);
     }
   }

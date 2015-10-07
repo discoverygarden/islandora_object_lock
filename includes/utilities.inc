@@ -62,7 +62,7 @@ function islandora_object_lock_get_locks($offset, $limit) {
   foreach ($raw_results as $raw_result) {
     $results[$raw_result['object']['value']] = array(
       'object' => l($raw_result['label']['value'], "islandora/object/{$raw_result['object']['value']}"),
-      'expires' => format_date(strtotime($raw_result['expiry']['value'])),
+      'expires' => $raw_result['expiry']['value'] == 'indefinite' ? t('Indefinite') : format_date(strtotime($raw_result['expiry']['value'])),
       'user' => $raw_result['user']['value'],
     );
   }
@@ -100,15 +100,20 @@ function islandora_object_lock_count_locks() {
  *   TRUE if the object is locked.
  */
 function islandora_object_lock_is_locked(AbstractObject $object) {
-  $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  $lock = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   if (count($lock) < 1) {
     return FALSE;
   }
   else {
-    $expiry_time = strtotime($lock[0]['object']['value']);
-    if ($expiry_time < time()) {
-      islandora_object_lock_remove_object_lock($object->id);
-      return FALSE;
+    $expiry_time = $lock[0]['object']['value'];
+    if ($expiry_time != 'indefinite') {
+      if (strtotime($expiry_time) < time()) {
+        islandora_object_lock_remove_object_lock($object->id);
+        return FALSE;
+      }
+      else {
+        return TRUE;
+      }
     }
     else {
       return TRUE;

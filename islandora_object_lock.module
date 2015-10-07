@@ -15,7 +15,7 @@ define('ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED', 'isUserManagementRu
  */
 function islandora_object_lock_menu() {
   $items = array();
-  $items['admin/islandora/object-lock'] = array(
+  $items['admin/islandora/tools/object-lock'] = array(
     'title' => 'Object locking',
     'access arguments' => array('administer islandora object locking'),
     'page callback' => 'drupal_get_form',
@@ -107,13 +107,15 @@ EOQ;
  * Release a lock if a datastream is modified.
  */
 function islandora_object_lock_islandora_datastream_modified(AbstractObject $object, AbstractDatastream $datastream) {
-  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+  if (variable_get('islandora_object_lock_lift_lock_on_modify', TRUE)) {
+    module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
 
-  $excluded_datastreams = array('RELS-EXT', 'POLICY');
-  if (!in_array($datastream->id, $excluded_datastreams)) {
-    $locked = islandora_object_lock_is_locked($object);
-    if ($locked) {
-      islandora_object_lock_remove_object_lock($object->id);
+    $excluded_datastreams = array('RELS-EXT', 'POLICY');
+    if (!in_array($datastream->id, $excluded_datastreams)) {
+      $locked = islandora_object_lock_is_locked($object);
+      if ($locked) {
+        islandora_object_lock_remove_object_lock($object->id);
+      }
     }
   }
 }
@@ -123,10 +125,11 @@ function islandora_object_lock_islandora_datastream_modified(AbstractObject $obj
  *
  * @param string $pid
  *   The object's PID.
- * @param User $user
+ * @param object $user
  *   The user object for the lock owner.
- * @param int $duration
- *   The length of the lock in minutes.
+ * @param NULL|int|bool $duration
+ *   NULL if using the default configured, an integer specifying the length of
+ *   the lock in minutes or FALSE if the duration is to be indefinite.
  */
 function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = NULL) {
   if (is_null($user)) {
@@ -137,8 +140,14 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
     $duration = islandora_object_lock_compute_duration($pid);
   }
 
-  $expiry_time = time() + (60 * $duration);
-  $expiry_date = gmdate("Y-m-d\TH:i:s\Z", $expiry_time);
+  if ($duration) {
+    $expiry_time = time() + (60 * $duration);
+    $expiry_date = gmdate("Y-m-d\TH:i:s\Z", $expiry_time);
+  }
+  else {
+    $expiry_date = 'indefinite';
+  }
+
   $object = islandora_object_load($pid);
 
   $xacml = new IslandoraXacml($object);
@@ -156,7 +165,11 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   $xacml->managementRule->addUser($user->name);
   $xacml->writeBackToFedora();
 
-  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, RELS_TYPE_DATETIME);
+  $type = RELS_TYPE_PLAIN_LITERAL;
+  if ($duration) {
+    $type = RELS_TYPE_DATETIME;
+  }
+  $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, $type);
   $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
 
   if ($management_rule) {
@@ -183,10 +196,10 @@ function islandora_object_lock_remove_object_lock($pid) {
 
   $xacml = new IslandoraXacml($object);
 
-  $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
   if (!empty($was_management_rule)) {
     $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
-    $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+    $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
     if (empty($was_user_management_rule)) {
       $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
       $xacml->managementRule->removeUser($locking_user);
@@ -262,11 +275,17 @@ function islandora_object_lock_compute_duration($pid) {
       $locks = $collection_locks;
     }
   }
-
-  drupal_set_message(t('Lock duration set for @time min(s).', array('@time' => max($locks))), 'status');
+  $time = max($locks);
+  if ($time) {
+    $statement = "for $time min(s)";
+  }
+  else {
+    $statement = "indefinitely";
+  }
+  drupal_set_message(t('Lock duration set @time.', array('@time' => $statement)), 'status');
   // Take the highest lock length available, and
   // apply that to the object being locked.
-  return max($locks);
+  return $time;
 }
 
 /**
@@ -279,7 +298,7 @@ function islandora_object_lock_compute_duration($pid) {
  *   The username.
  */
 function islandora_object_lock_get_lock_username(AbstractObject $object) {
-  $users = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, NULL, RELS_TYPE_PLAIN_LITERAL);
+  $users = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
   return $users[0]['object']['value'];
 }
 
@@ -293,7 +312,7 @@ function islandora_object_lock_get_lock_username(AbstractObject $object) {
  *   The expiry date.
  */
 function islandora_object_lock_get_lock_expiry(AbstractObject $object) {
-  $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, NULL, RELS_TYPE_DATETIME);
+  $expiry = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   return $expiry[0]['object']['value'];
 }
 
