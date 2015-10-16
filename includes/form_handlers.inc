@@ -117,8 +117,10 @@ function islandora_object_lock_release_lock_submit_handler(&$form, &$form_state)
  * @param bool $allow_acquisition
  *   Try to acquire the lock if the current user does not have it; the lock
  *   will have to be manually acquired.
+ * @param NULL|string $redirect
+ *   The relative URL to redirect to, the manage page otherwise.
  */
-function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE) {
+function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE, $redirect = NULL) {
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/utilities');
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
 
@@ -137,20 +139,20 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
     }
     else {
       // ... but somebody else has it ...
-      $manage_page = "islandora/object/$object->id/manage";
+      $redirect_url = is_null($redirect) ? "islandora/object/$object->id/manage" : $redirect;
       $message = t('This object has been locked by another user.');
       if (islandora_object_lock_request_unlock_access()) {
         // ... but you can ask them to release it.
         $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
           '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
             'query' => array(
-              'destination' => $manage_page,
+              'destination' => $redirect_url,
             ),
           )),
         ));
       }
       drupal_set_message(filter_xss($message), 'error');
-      drupal_goto($manage_page);
+      drupal_goto($redirect_url);
     }
   }
   elseif ($allow_acquisition) {
