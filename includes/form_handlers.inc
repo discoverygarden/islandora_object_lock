@@ -83,10 +83,15 @@ function islandora_object_lock_release_lock_submit_handler(&$form, &$form_state)
  *   will have to be manually acquired.
  * @param NULL|string $redirect
  *   The relative URL to redirect to, the manage page otherwise.
+ * @param array $parents
+ *   A hierarchy of keys into the form, where the #validate and #submit
+ *   handlers need to be set.
  */
-function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE, $redirect = NULL) {
+function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE, $redirect = NULL, $parents = array()) {
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/utilities');
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
+
+  $submitting_element =& drupal_array_get_nested_value($form, $parents);
 
   $locked = islandora_object_lock_is_locked($object);
   if ($locked) {
@@ -123,7 +128,7 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
     // Object is not locked, and have been instructed to automatically
     // acquire/release it.
     islandora_object_lock_set_object_lock($object->id);
-    $form['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
+    $submitting_element['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
   }
   else {
     if (islandora_object_lock_access_lock($object, 'lock')) {
@@ -149,5 +154,5 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
     'allow_acquisition' => $allow_acquisition,
   );
 
-  $form['#validate'][] = 'islandora_object_lock_check_lock_validation_handler';
+  $submitting_element['#validate'][] = 'islandora_object_lock_check_lock_validation_handler';
 }
