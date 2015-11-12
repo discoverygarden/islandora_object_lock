@@ -52,42 +52,6 @@ function islandora_object_lock_check_lock_validation_handler(&$form, &$form_stat
     drupal_set_message(filter_xss($message), 'error');
     drupal_goto($manage_page);
   }
-
-  $locked = islandora_object_lock_is_locked($object);
-  $owned = islandora_object_lock_user_has_lock($object);
-
-  $manage_page = "islandora/object/$object->id/manage/datastreams";
-
-  if (!$owned) {
-    if ($locked) {
-      $message = t('This object has been locked by another user.');
-      if (islandora_object_lock_request_unlock_access()) {
-        $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
-          '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
-            'query' => array(
-              'destination' => $manage_page,
-            ),
-          )),
-        ));
-      }
-    }
-    elseif ($path_suffix !== NULL && $allow_acquisition) {
-      $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>. Any changes since your last save will be lost.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/{$path_suffix}"),
-      ));
-    }
-    else {
-      $message = t('You must have a lock on the object in order to perform this operation. To re-lock this object, please <a href="@edit_url">try again</a>.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/manage/datastreams/locking/lock", array(
-          'query' => array(
-            'destination' => $path_suffix !== NULL ? "islandora/object/{$object->id}/$path_suffix" : NULL,
-          ),
-        )),
-      ));
-    }
-    drupal_set_message(filter_xss($message), 'error');
-    drupal_goto($manage_page);
-  }
 }
 
 /**
