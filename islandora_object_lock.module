@@ -400,7 +400,7 @@ function islandora_object_lock_form_islandora_delete_object_form_alter(&$form, &
 function islandora_object_lock_form_xml_form_builder_datastream_form_alter(&$form, &$form_state, $form_id) {
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object, $dsid) = $form_state['build_info']['args'];
-  islandora_object_lock_acquire_during_alter($form, $form_state, $object, $dsid, "datastream/$dsid/edit", TRUE);
+  islandora_object_lock_acquire_during_alter($form, $form_state, $object, $dsid, "datastream/$dsid/edit", TRUE, NULL, array('update'));
 }
 
 /**

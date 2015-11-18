@@ -52,42 +52,6 @@ function islandora_object_lock_check_lock_validation_handler(&$form, &$form_stat
     drupal_set_message(filter_xss($message), 'error');
     drupal_goto($manage_page);
   }
-
-  $locked = islandora_object_lock_is_locked($object);
-  $owned = islandora_object_lock_user_has_lock($object);
-
-  $manage_page = "islandora/object/$object->id/manage/datastreams";
-
-  if (!$owned) {
-    if ($locked) {
-      $message = t('This object has been locked by another user.');
-      if (islandora_object_lock_request_unlock_access()) {
-        $message .= ' ' . t('You can request that they <a href="@release_url">release</a> the lock.', array(
-          '@release_url' => url("islandora/object/{$object->id}/request_unlock", array(
-            'query' => array(
-              'destination' => $manage_page,
-            ),
-          )),
-        ));
-      }
-    }
-    elseif ($path_suffix !== NULL && $allow_acquisition) {
-      $message = t('Your lock has expired due to inactivity. To re-lock this object, please <a href="@edit_url">try again</a>. Any changes since your last save will be lost.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/{$path_suffix}"),
-      ));
-    }
-    else {
-      $message = t('You must have a lock on the object in order to perform this operation. To re-lock this object, please <a href="@edit_url">try again</a>.', array(
-        '@edit_url' => url("islandora/object/{$object->id}/manage/datastreams/locking/lock", array(
-          'query' => array(
-            'destination' => $path_suffix !== NULL ? "islandora/object/{$object->id}/$path_suffix" : NULL,
-          ),
-        )),
-      ));
-    }
-    drupal_set_message(filter_xss($message), 'error');
-    drupal_goto($manage_page);
-  }
 }
 
 /**
@@ -119,10 +83,15 @@ function islandora_object_lock_release_lock_submit_handler(&$form, &$form_state)
  *   will have to be manually acquired.
  * @param NULL|string $redirect
  *   The relative URL to redirect to, the manage page otherwise.
+ * @param array $parents
+ *   A hierarchy of keys into the form, where the #validate and #submit
+ *   handlers need to be set.
  */
-function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE, $redirect = NULL) {
+function islandora_object_lock_acquire_during_alter(&$form, &$form_state, AbstractObject $object, $dsid = NULL, $path_suffix = NULL, $allow_acquisition = FALSE, $redirect = NULL, $parents = array()) {
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/utilities');
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
+
+  $submitting_element =& drupal_array_get_nested_value($form, $parents);
 
   $locked = islandora_object_lock_is_locked($object);
   if ($locked) {
@@ -159,7 +128,7 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
     // Object is not locked, and have been instructed to automatically
     // acquire/release it.
     islandora_object_lock_set_object_lock($object->id);
-    $form['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
+    $submitting_element['#submit'][] = 'islandora_object_lock_release_lock_submit_handler';
   }
   else {
     if (islandora_object_lock_access_lock($object, 'lock')) {
@@ -185,5 +154,5 @@ function islandora_object_lock_acquire_during_alter(&$form, &$form_state, Abstra
     'allow_acquisition' => $allow_acquisition,
   );
 
-  $form['#validate'][] = 'islandora_object_lock_check_lock_validation_handler';
+  $submitting_element['#validate'][] = 'islandora_object_lock_check_lock_validation_handler';
 }
