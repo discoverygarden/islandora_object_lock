@@ -60,7 +60,14 @@ function islandora_object_lock_check_lock_validation_handler(&$form, &$form_stat
  * Release the lock (assuming we have it).
  */
 function islandora_object_lock_release_lock_submit_handler(&$form, &$form_state) {
-  islandora_object_lock_remove_object_lock($form_state['islandora_object_lock_info']['pid']);
+  module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+  $object = islandora_object_load($form_state['islandora_object_lock_info']['pid']);
+  $locked = islandora_object_lock_is_locked($object);
+  // It's possible the datastream modified hook may have already removed the
+  // lock (if enabled). Don't try to double remove it if that's the case.
+  if ($locked) {
+    islandora_object_lock_remove_object_lock($form_state['islandora_object_lock_info']['pid']);
+  }
 }
 
 /**
