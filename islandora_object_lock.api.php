@@ -28,5 +28,5 @@ function hook_islandora_object_lock_ignored_datastream_modifications(AbstractDat
  *
  * @see hook_islandora_object_lock_ignored_datastream_modifications()
  */
-function hook_CMODEL_PID_islandora_object_lock_ignored_datastream_modifications(AbstractDatastream $datastream) {
+function hook_cmodel_pid_islandora_object_lock_ignored_datastream_modifications(AbstractDatastream $datastream) {
 }
