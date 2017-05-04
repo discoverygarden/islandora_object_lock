@@ -10,6 +10,8 @@ define('ISLANDORA_OBJECT_LOCK_USER_PRED', 'locked-by');
 define('ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED', 'isManagementRule');
 define('ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED', 'isUserManagementRule');
 
+const ISLANDORA_OBJECT_LOCK_IGNORED_DATASTREAM_MODIFICATIONS = 'islandora_object_lock_ignored_datastream_modifications';
+
 /**
  * Implements hook_menu().
  */
@@ -109,8 +111,9 @@ EOQ;
 function islandora_object_lock_islandora_datastream_modified(AbstractObject $object, AbstractDatastream $datastream) {
   if (variable_get('islandora_object_lock_lift_lock_on_modify', TRUE)) {
     module_load_include('inc', 'islandora_object_lock', 'includes/utilities');
+    module_load_include('inc', 'islandora', 'includes/utilities');
 
-    $excluded_datastreams = array('RELS-EXT', 'POLICY');
+    $excluded_datastreams = islandora_invoke_hook_list(ISLANDORA_OBJECT_LOCK_IGNORED_DATASTREAM_MODIFICATIONS, $object->models, array($datastream));
     if (!in_array($datastream->id, $excluded_datastreams)) {
       $locked = islandora_object_lock_is_locked($object);
       if ($locked) {
@@ -464,4 +467,14 @@ function islandora_object_lock_form_islandora_add_datastream_form_alter(&$form, 
   form_load_include($form_state, 'inc', 'islandora_object_lock', 'includes/form_handlers');
   list($object) = $form_state['build_info']['args'];
   islandora_object_lock_acquire_during_alter($form, $form_state, $object, NULL, 'manage/datastreams/add');
+}
+
+/**
+ * Implements hook_islandora_object_lock_ignored_datastream_modifications().
+ */
+function islandora_object_lock_islandora_object_lock_ignored_datastream_modifications(AbstractDatastream $datastream) {
+  return array(
+    'RELS-EXT',
+    'POLICY',
+  );
 }
