@@ -172,6 +172,8 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
   if ($duration) {
     $type = RELS_TYPE_DATETIME;
   }
+
+  $object->relationships->autoCommit = FALSE;
   $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED, $expiry_date, $type);
   $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED, $user->name, RELS_TYPE_PLAIN_LITERAL);
 
@@ -181,6 +183,7 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
       $object->relationships->add(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED, "TRUE", RELS_TYPE_PLAIN_LITERAL);
     }
   }
+  $object->relationships->commitRelationships();
 }
 
 /**
@@ -201,20 +204,24 @@ function islandora_object_lock_remove_object_lock($pid) {
 
   $was_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
   if (!empty($was_management_rule)) {
+    $object->relationships->autoCommit = FALSE;
     $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_MANAGEMENT_RULE_PRED);
     $was_user_management_rule = $object->relationships->get(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
     if (empty($was_user_management_rule)) {
       $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_IS_USER_MANAGEMENT_RULE_PRED);
       $xacml->managementRule->removeUser($locking_user);
     }
+    $object->relationships->commitRelationships();
   }
   else {
     $xacml->managementRule->clear();
   }
   $xacml->writeBackToFedora();
 
+  $object->relationships->autoCommit = FALSE;
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_EXPIRY_PRED);
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
+  $object->relationships->commitRelationships();
 
   $GLOBALS['user'] = $original_user;
   drupal_save_session(TRUE);
