@@ -193,10 +193,13 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
  *   The object's PID.
  */
 function islandora_object_lock_remove_object_lock($pid) {
-  drupal_save_session(FALSE);
-  $original_user = $GLOBALS['user'];
-  $GLOBALS['user'] = user_load(1);
-
+  // XXX: The connection may be created without credentials (when your site's
+  // front page is 'islandora/object/some:object', for example). Resetting to
+  // ensure a new connection gets created should fix it.
+  drupal_static_reset('islandora_get_tuque_connection');
+  $user = user_load(1);
+  $tuque = islandora_get_tuque_connection($user);
+  $tuque->cache->delete($pid);
   $object = islandora_object_load($pid);
   $locking_user = islandora_object_lock_get_lock_username($object);
 
@@ -223,8 +226,9 @@ function islandora_object_lock_remove_object_lock($pid) {
   $object->relationships->remove(ISLANDORA_RELS_EXT_URI, ISLANDORA_OBJECT_LOCK_USER_PRED);
   $object->relationships->commitRelationships();
 
-  $GLOBALS['user'] = $original_user;
-  drupal_save_session(TRUE);
+  drupal_static_reset('islandora_get_tuque_connection');
+  $tuque = islandora_get_tuque_connection();
+  $tuque->cache->delete($pid);
 }
 
 /**
