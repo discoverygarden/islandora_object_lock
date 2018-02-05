@@ -193,6 +193,16 @@ function islandora_object_lock_set_object_lock($pid, $user = NULL, $duration = N
  *   The object's PID.
  */
 function islandora_object_lock_remove_object_lock($pid) {
+  $unlocking =& drupal_static(__FUNCTION__, array());
+
+  if (isset($unlocking[$pid])) {
+    // In the process of unlocking; let's not explode.
+    return;
+  }
+  else {
+    $unlocking[$pid] = $pid;
+  }
+
   // XXX: The connection may be created without credentials (when your site's
   // front page is 'islandora/object/some:object', for example). Resetting to
   // ensure a new connection gets created should fix it.
@@ -229,6 +239,8 @@ function islandora_object_lock_remove_object_lock($pid) {
   drupal_static_reset('islandora_get_tuque_connection');
   $tuque = islandora_get_tuque_connection();
   $tuque->cache->delete($pid);
+
+  unset($unlocking[$pid]);
 }
 
 /**
