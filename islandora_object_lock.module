@@ -200,7 +200,7 @@ function islandora_object_lock_remove_object_lock($pid) {
     return;
   }
   else {
-    $unlocking[$pid] = $pid;
+    $unlocking[$pid] = TRUE;
   }
 
   // XXX: The connection may be created without credentials (when your site's
