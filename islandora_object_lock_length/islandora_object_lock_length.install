@@ -14,6 +14,7 @@ function islandora_object_lock_length_schema() {
       'pid' => array(
         'type' => 'varchar',
         'length' => 255,
+        'not null' => TRUE,
         'description' => 'The PID for the collection lock.',
       ),
       'duration' => array(
@@ -25,4 +26,33 @@ function islandora_object_lock_length_schema() {
     'primary key' => array('pid'),
   );
   return $schema;
+}
+
+/**
+ * Update Islandora Object Lock Length table primary key to not allow NULL values.
+ */
+function islandora_object_lock_length_update_7100() {
+  // For sanity, let's make sure there are no null values in the table...
+  $results = db_select('islandora_object_lock_length_locks', 'i')
+    ->fields('i', array('pid'))
+    ->isNull('pid')
+    ->execute()
+    ->rowCount();
+
+  if ($results) {
+    return new DrupalUpdateException('NULL entries found in islandora_object_lock_length_locks table, please manually correct any rows with NULL values.');
+  }
+  else {
+    db_drop_primary_key('islandora_object_lock_length_locks');
+    db_change_field('islandora_object_lock_length_locks', 'pid', 'pid', array(
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => TRUE,
+      'description' => 'The PID for the collection lock.',
+    ), array(
+      'primary key' => array(
+        'pid',
+      ),
+    ));
+  }
 }
