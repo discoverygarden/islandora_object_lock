@@ -31,7 +31,7 @@ function islandora_object_lock_length_schema() {
 /**
  * Update Islandora Object Lock Length table primary key to not allow NULL values.
  */
-function islandora_object_lock_length_update_7101() {
+function islandora_object_lock_length_update_7100() {
   // For sanity, let's make sure there are no null values in the table...
   $results = db_select('islandora_object_lock_length_locks', 'i')
     ->fields('i', array('pid'))
